@@ -4,15 +4,12 @@ import { Search, RefreshCw, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@client/src/components/ui/button';
 import { Input } from '@client/src/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@client/src/components/ui/select';
 import { inventoryApi, warehouseApi } from '@client/src/api';
 import type { Product, Warehouse } from '@shared/api.interface';
+import PinyinSelect from '@client/src/components/PinyinSelect';
+import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
+import { buildWarehouseOptions } from '@/lib/entity-options';
+import { filterByPinyin } from '@/lib/pinyin-match';
 
 export default function InventoryPage() {
   const [list, setList] = useState<Product[]>([]);
@@ -26,19 +23,44 @@ export default function InventoryPage() {
   const [searchWarehouseId, setSearchWarehouseId] = useState('');
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
 
+  const warehouseOptions = useMemo<ComboOption[]>(
+    () => buildWarehouseOptions(warehouses),
+    [warehouses]
+  );
+
+  /** 关键字按拼音过滤：服务端只认原文，拼音得把该仓库的整份存货拉回来在本地筛 */
   const fetchData = useCallback(
     async (p = page, kw = searchKw, whId = searchWarehouseId) => {
       setLoading(true);
       try {
+        if (!kw) {
+          const res = await inventoryApi.list({
+            page: p,
+            pageSize,
+            keyword: '',
+            warehouseId: whId,
+          });
+          setList(res.items);
+          setTotal(res.total);
+          setPage(res.page);
+          return;
+        }
         const res = await inventoryApi.list({
-          page: p,
-          pageSize,
-          keyword: kw,
+          page: 1,
+          pageSize: 100000,
+          keyword: '',
           warehouseId: whId,
         });
-        setList(res.items);
-        setTotal(res.total);
-        setPage(res.page);
+        const rows = filterByPinyin(res.items, kw, (r: Product) => [
+          r.name,
+          r.spec,
+          r.unit,
+          r.category,
+          r.remark,
+        ]);
+        setTotal(rows.length);
+        setPage(p);
+        setList(rows.slice((p - 1) * pageSize, p * pageSize));
       } finally {
         setLoading(false);
       }
@@ -115,23 +137,17 @@ export default function InventoryPage() {
         <div className="text-base font-semibold text-gray-800">存货查询</div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
-            <Select value={warehouseId} onValueChange={setWarehouseId}>
-              <SelectTrigger className="h-8 w-36">
-                <SelectValue placeholder="全部仓库" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">全部仓库</SelectItem>
-                {warehouses.map((w) => (
-                  <SelectItem key={w.id} value={w.id}>
-                    {w.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <PinyinSelect
+              value={warehouseId}
+              options={warehouseOptions}
+              onChange={setWarehouseId}
+              placeholder="全部仓库"
+              className="h-8 w-36"
+            />
             <Input
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="按商品名称搜索"
+              placeholder="商品名称/拼音"
               className="w-48 h-8 text-sm"
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />

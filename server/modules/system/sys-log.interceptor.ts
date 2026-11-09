@@ -5,13 +5,11 @@ import { SysLogService } from './sys-log.service';
 /**
  * 全局操作日志拦截器。
  *
- * 背景：库里 sys_log 表、/api/sys-logs 查询接口、前端「操作日志管理」页面都存在，
- * 但全项目没有任何一处往表里 insert，所以页面永远空白。
- * 这里按「写操作请求」统一落库（GET/HEAD/OPTIONS 不记，避免把查询刷满）：
+ * 按「写操作请求」统一把日志写入 sys_log（GET/HEAD/OPTIONS 不记）：
  *   - 模块：按 URL 首段映射成中文业务名
  *   - 动作：按 方法 + 子路径 判定（审核/反审核/导入/新增/修改/删除/登录）
  *   - 详情：请求体压成一行，密码类字段打码，附 HTTP 状态与耗时
- * 写日志失败只告警，绝不影响业务响应。
+ * 写日志失败只告警，不影响业务响应。
  */
 
 const MODULE_MAP: Array<[string, string]> = [
@@ -116,8 +114,7 @@ export class SysLogInterceptor implements NestInterceptor {
         }
       } else {
         const summary = SysLogService.summarize(req.body);
-        // 审核/删除这类请求 body 为空，摘要里没有对象标识；补上路径，
-        // 让 detail 能定位到具体单据（如 /sales-deliveries/<id>/audit）
+        // 请求体为空时（审核、删除等）退化为记录请求路径，便于定位具体单据
         if (summary) parts.push(summary);
         else parts.push(`路径=${path}`);
       }

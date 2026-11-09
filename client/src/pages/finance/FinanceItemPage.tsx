@@ -29,6 +29,7 @@ import {
 } from '@client/src/components/ui/tabs';
 import { financeItemApi } from '@client/src/api';
 import type { FinanceItem } from '@shared/api.interface';
+import { filterByPinyin } from '@/lib/pinyin-match';
 import { showConfirm } from '@lark-apaas/client-toolkit';
 
 const defaultForm: Partial<FinanceItem> = {
@@ -54,13 +55,10 @@ export default function FinanceItemPage() {
       if (activeTab === 'income') params.type = 'income';
       else if (activeTab === 'expense') params.type = 'expense';
       const items = await financeItemApi.list(params);
-      const kw = searchKw.trim();
-      const filtered = kw
-        ? items.filter((it: FinanceItem) =>
-            it.name?.toLowerCase().includes(kw.toLowerCase()) ||
-            it.remark?.toLowerCase().includes(kw.toLowerCase())
-          )
-        : items;
+      const filtered = filterByPinyin(items, searchKw, (it: FinanceItem) => [
+        it.name,
+        it.remark,
+      ]);
       setList(filtered);
     } finally {
       setLoading(false);
@@ -180,7 +178,7 @@ export default function FinanceItemPage() {
             <Input
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="按名称搜索"
+              placeholder="名称/拼音"
               className="w-48 h-8 text-sm"
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />

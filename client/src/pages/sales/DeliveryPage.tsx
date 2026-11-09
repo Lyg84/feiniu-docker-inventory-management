@@ -36,6 +36,8 @@ import { Textarea } from '@client/src/components/ui/textarea';
 
 import { salesDeliveryApi, customerApi, productApi } from '@client/src/api';
 import { buildProductOptions } from '@/lib/product-options';
+import { buildCustomerOptions } from '@/lib/entity-options';
+import PinyinSelect from '@client/src/components/PinyinSelect';
 import type { SalesDelivery, DeliveryItem, Customer, Product, PriceHistory } from '@shared/api.interface';
 import { showConfirm } from '@/lib/confirm';
 
@@ -133,6 +135,12 @@ const DeliveryPage: React.FC = () => {
     [customers]
   );
 
+  /** 顶部筛选的客户候选，按客户 id 取值 */
+  const customerIdOptions = useMemo<ComboOption[]>(
+    () => buildCustomerOptions(customers),
+    [customers]
+  );
+
   // 打印客户端连接：页面打开即尝试连本机 17521
   useEffect(() => {
     const unsubscribe = subscribePrintState((s: PrintClientState) => setPrintState(s));
@@ -214,9 +222,7 @@ const DeliveryPage: React.FC = () => {
   };
 
   /**
-   * 打开查看/编辑弹窗。
-   * 列表接口只返回表头字段，不带 items，所以明细必须单独调详情接口取；
-   * 直接读 record.items 会让「查看」里商品行为空、只剩合计金额。
+   * 打开查看/编辑弹窗，明细按 id 调详情接口补全。
    */
   const openEdit = async (record: SalesDelivery, viewOnly: boolean = false): Promise<void> => {
     let detail: SalesDelivery | null = null;
@@ -737,18 +743,13 @@ const DeliveryPage: React.FC = () => {
 
         <div className="h-6 w-px bg-gray-200 mx-1" />
 
-        <Select value={searchCustomer} onValueChange={setSearchCustomer}>
-          <SelectTrigger size="sm" className="w-40">
-            <SelectValue placeholder="全部客户" />
-          </SelectTrigger>
-          <SelectContent>
-            {customers.map((c: Customer) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <PinyinSelect
+          value={searchCustomer}
+          options={customerIdOptions}
+          onChange={setSearchCustomer}
+          placeholder="全部客户"
+          className="w-40"
+        />
 
         <Select value={searchStatus} onValueChange={setSearchStatus}>
           <SelectTrigger size="sm" className="w-28">

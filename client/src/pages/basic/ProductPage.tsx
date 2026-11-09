@@ -54,6 +54,7 @@ const PRODUCT_IMPORT_COLUMNS: ImportColumn[] = [
   { header: '备注', field: 'remark', sample: '' },
 ];
 import type { Product } from '@shared/api.interface';
+import { filterByPinyin } from '@/lib/pinyin-match';
 import { showConfirm } from '@/lib/confirm';
 
 const defaultForm: Partial<Product> = {
@@ -82,10 +83,24 @@ export default function ProductPage() {
   const fetchData = useCallback(async (p = page, kw = searchKw) => {
     setLoading(true);
     try {
-      const res = await productApi.list({ page: p, pageSize, keyword: kw });
-      setList(res.items);
-      setTotal(res.total);
-      setPage(res.page);
+      if (!kw) {
+        const res = await productApi.list({ page: p, pageSize, keyword: '' });
+        setList(res.items);
+        setTotal(res.total);
+        setPage(res.page);
+        return;
+      }
+      const all = await productApi.all();
+      const rows = filterByPinyin(all, kw, (it: Product) => [
+        it.name,
+        it.spec,
+        it.unit,
+        it.category,
+        it.remark,
+      ]);
+      setTotal(rows.length);
+      setPage(p);
+      setList(rows.slice((p - 1) * pageSize, p * pageSize));
     } finally {
       setLoading(false);
     }
@@ -206,7 +221,7 @@ export default function ProductPage() {
             <Input
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="按名称搜索"
+              placeholder="名称/拼音/规格"
               className="w-48 h-8 text-sm"
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />

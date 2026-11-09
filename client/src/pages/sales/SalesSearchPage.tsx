@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Table, type TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
 import { Search, Eye } from 'lucide-react';
 import { toast } from 'sonner';
@@ -41,12 +41,20 @@ import type {
   DeliveryItem,
   ReceiptItem,
 } from '@shared/api.interface';
+import PinyinSelect from '@client/src/components/PinyinSelect';
+import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
+import { buildCustomerOptions } from '@/lib/entity-options';
 
 type TabKey = 'delivery' | 'return' | 'receipt';
 
 const SalesSearchPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabKey>('delivery');
   const [customers, setCustomers] = useState<Customer[]>([]);
+
+  const customerOptions = useMemo<ComboOption[]>(
+    () => buildCustomerOptions(customers),
+    [customers]
+  );
 
   // search params
   const [searchCustomer, setSearchCustomer] = useState<string>('');
@@ -77,6 +85,14 @@ const SalesSearchPage: React.FC = () => {
   const [detailOpen, setDetailOpen] = useState<boolean>(false);
   const [detailType, setDetailType] = useState<TabKey>('delivery');
   const [detailData, setDetailData] = useState<SalesDelivery | SalesReturn | Receipt | null>(null);
+  const [detailLoading, setDetailLoading] = useState<boolean>(false);
+
+  // 退货弹窗：从当前送货单勾选商品直接生成退货单
+  const [returnPickOpen, setReturnPickOpen] = useState<boolean>(false);
+  const [returnPickRows, setReturnPickRows] = useState<
+    { key: string; checked: boolean; quantity: number; item: DeliveryItem }[]
+  >([]);
+  const [returnSubmitting, setReturnSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
     customerApi
@@ -182,22 +198,138 @@ const SalesSearchPage: React.FC = () => {
     handleSearch();
   };
 
-  const viewDelivery = (record: SalesDelivery): void => {
+  const viewDelivery = async (record: SalesDelivery): Promise<void> => {
     setDetailType('delivery');
     setDetailData(record);
     setDetailOpen(true);
+    setDetailLoading(true);
+    try {
+      const detail = await salesDeliveryApi.get(record.id);
+      if (detail) setDetailData(detail);
+    } catch {
+      toast.error('加载送货单明细失败');
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
-  const viewReturn = (record: SalesReturn): void => {
+  const viewReturn = async (record: SalesReturn): Promise<void> => {
     setDetailType('return');
     setDetailData(record);
     setDetailOpen(true);
+    setDetailLoading(true);
+    try {
+      const detail = await salesReturnApi.get(record.id);
+      if (detail) setDetailData(detail);
+    } catch {
+      toast.error('加载退货单明细失败');
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
-  const viewReceipt = (record: Receipt): void => {
+  const viewReceipt = async (record: Receipt): Promise<void> => {
     setDetailType('receipt');
     setDetailData(record);
     setDetailOpen(true);
+    setDetailLoading(true);
+    try {
+      const detail = await receiptApi.get(record.id);
+      if (detail) setDetailData(detail);
+    } catch {
+      toast.error('加载收款单明细失败');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const openReturnPick = (): void => {
+    if (detailType !== 'delivery' || !detailData) return;
+    const d = detailData as SalesDelivery;
+    const list: DeliveryItem[] = d.items || [];
+    if (list.length === 0) {
+      toast.error('当前单据没有商品明细，无法退货');
+      return;
+    }
+    setReturnPickRows(
+      list.map((it: DeliveryItem, i: number) => ({
+        key: it.id || `row-${i}`,
+        checked: true,
+        quantity: it.quantity,
+        item: it,
+      })),
+    );
+    setReturnPickOpen(true);
+  };
+
+  const toggleReturnRow = (key: string): void => {
+    setReturnPickRows((rows) =>
+      rows.map((r) => (r.key === key ? { ...r, checked: !r.checked } : r)),
+    );
+  };
+
+  const changeReturnQty = (key: string, raw: string): void => {
+    const num = Number(raw);
+    setReturnPickRows((rows) =>
+      rows.map((r) => {
+        if (r.key !== key) return r;
+        const max = r.item.quantity;
+        const qty = Number.isFinite(num) ? Math.min(Math.max(num, 0), max) : 0;
+        return { ...r, quantity: qty };
+      }),
+    );
+  };
+
+  const returnPickTotal = useMemo<number>(
+    () =>
+      returnPickRows.reduce(
+        (sum, r) => (r.checked ? sum + r.quantity * r.item.price : sum),
+        0,
+      ),
+    [returnPickRows],
+  );
+
+  const submitReturnFromDelivery = (): void => {
+    if (detailType !== 'delivery' || !detailData) return;
+    const d = detailData as SalesDelivery;
+    const picked = returnPickRows.filter((r) => r.checked && r.quantity > 0);
+    if (picked.length === 0) {
+      toast.error('请至少选择一件退货商品，并填写退货数量');
+      return;
+    }
+    const items: DeliveryItem[] = picked.map((r, idx) => ({
+      productId: r.item.productId,
+      productName: r.item.productName,
+      spec: r.item.spec,
+      unit: r.item.unit,
+      quantity: r.quantity,
+      price: r.item.price,
+      amount: Number((r.quantity * r.item.price).toFixed(2)),
+      sortOrder: idx,
+    }));
+    const totalAmount = Number(
+      items.reduce((sum, it) => sum + it.amount, 0).toFixed(2),
+    );
+
+    setReturnSubmitting(true);
+    salesReturnApi
+      .create({
+        customerId: d.customerId,
+        returnDate: new Date().toISOString().slice(0, 10),
+        deliveryId: d.id,
+        remark: `由送货单 ${d.orderNo} 退货`,
+        totalAmount,
+        items,
+      })
+      .then(() => {
+        toast.success('退货单已生成，可到「退货单」查看并审核');
+        setReturnPickOpen(false);
+        setDetailOpen(false);
+        setReturnPage(1);
+        setActiveTab('return');
+      })
+      .catch(() => toast.error('生成退货单失败'))
+      .finally(() => setReturnSubmitting(false));
   };
 
   const deliveryColumns: TableColumnsType<SalesDelivery> = [
@@ -245,7 +377,7 @@ const SalesSearchPage: React.FC = () => {
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => viewDelivery(record)}
+          onClick={() => void viewDelivery(record)}
         >
           <Eye size={14} /> 查看
         </Button>
@@ -284,7 +416,7 @@ const SalesSearchPage: React.FC = () => {
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => viewReturn(record)}
+          onClick={() => void viewReturn(record)}
         >
           <Eye size={14} /> 查看
         </Button>
@@ -331,7 +463,7 @@ const SalesSearchPage: React.FC = () => {
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => viewReceipt(record)}
+          onClick={() => void viewReceipt(record)}
         >
           <Eye size={14} /> 查看
         </Button>
@@ -383,7 +515,11 @@ const SalesSearchPage: React.FC = () => {
               <div className="px-2 py-1.5 border-r border-gray-200 text-right">单价</div>
               <div className="px-2 py-1.5 text-right">金额</div>
             </div>
-            {items.map((it: DeliveryItem, i: number) => (
+            {items.length === 0 ? (
+              <div className="border-t border-gray-200 px-2 py-4 text-center text-xs text-gray-400">
+                {detailLoading ? '明细加载中…' : '无商品明细'}
+              </div>
+            ) : items.map((it: DeliveryItem, i: number) => (
               <div
                 key={it.id || i}
                 className="grid grid-cols-[2fr_1fr_0.7fr_0.8fr_0.9fr_0.9fr] border-t border-gray-200"
@@ -460,7 +596,11 @@ const SalesSearchPage: React.FC = () => {
               <div className="px-2 py-1.5 border-r border-gray-200 text-right">单价</div>
               <div className="px-2 py-1.5 text-right">金额</div>
             </div>
-            {items.map((it: DeliveryItem, i: number) => (
+            {items.length === 0 ? (
+              <div className="border-t border-gray-200 px-2 py-4 text-center text-xs text-gray-400">
+                {detailLoading ? '明细加载中…' : '无商品明细'}
+              </div>
+            ) : items.map((it: DeliveryItem, i: number) => (
               <div
                 key={it.id || i}
                 className="grid grid-cols-[2fr_1fr_0.7fr_0.8fr_0.9fr_0.9fr] border-t border-gray-200"
@@ -567,6 +707,9 @@ const SalesSearchPage: React.FC = () => {
     );
   };
 
+  const pickDelivery: SalesDelivery | null =
+    detailType === 'delivery' ? (detailData as SalesDelivery | null) : null;
+
   return (
     <div className="bg-white rounded border border-gray-200">
       <div className="p-3 border-b">
@@ -580,18 +723,13 @@ const SalesSearchPage: React.FC = () => {
       </div>
 
       <div className="p-3 border-b flex items-center gap-2 flex-wrap">
-        <Select value={searchCustomer} onValueChange={setSearchCustomer}>
-          <SelectTrigger size="sm" className="w-40">
-            <SelectValue placeholder="全部客户" />
-          </SelectTrigger>
-          <SelectContent>
-            {customers.map((c: Customer) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <PinyinSelect
+          value={searchCustomer}
+          options={customerOptions}
+          onChange={setSearchCustomer}
+          placeholder="全部客户"
+          className="w-40"
+        />
 
         <Select value={searchStatus} onValueChange={setSearchStatus}>
           <SelectTrigger size="sm" className="w-28">
@@ -707,8 +845,109 @@ const SalesSearchPage: React.FC = () => {
           </DialogHeader>
           {renderDetailItems()}
           <DialogFooter>
+            {detailType === 'delivery' && (
+              <Button size="sm" variant="default" onClick={openReturnPick} disabled={detailLoading}>
+                退货
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setDetailOpen(false)}>
               关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={returnPickOpen} onOpenChange={setReturnPickOpen}>
+        <DialogContent className="max-w-3xl w-full">
+          <DialogHeader>
+            <DialogTitle>选择退货商品</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex gap-4 text-xs text-gray-500">
+            <span>原送货单：{pickDelivery?.orderNo || '-'}</span>
+            <span>客户：{pickDelivery?.customerName || '-'}</span>
+          </div>
+
+          <div className="border border-gray-200 rounded text-sm">
+            <div className="grid grid-cols-[0.4fr_2fr_1fr_0.7fr_0.8fr_0.9fr_0.9fr_0.9fr] bg-gray-50 text-xs font-semibold text-gray-700">
+              <div className="px-2 py-1.5 border-r border-gray-200 text-center">选</div>
+              <div className="px-2 py-1.5 border-r border-gray-200">商品名称</div>
+              <div className="px-2 py-1.5 border-r border-gray-200">规格</div>
+              <div className="px-2 py-1.5 border-r border-gray-200">单位</div>
+              <div className="px-2 py-1.5 border-r border-gray-200 text-right">原数量</div>
+              <div className="px-2 py-1.5 border-r border-gray-200 text-right">退货数量</div>
+              <div className="px-2 py-1.5 border-r border-gray-200 text-right">单价</div>
+              <div className="px-2 py-1.5 text-right">金额</div>
+            </div>
+            {returnPickRows.map((row) => (
+              <div
+                key={row.key}
+                className="grid grid-cols-[0.4fr_2fr_1fr_0.7fr_0.8fr_0.9fr_0.9fr_0.9fr] border-t border-gray-200 items-center"
+              >
+                <div className="px-2 py-1 flex justify-center">
+                  <input
+                    type="checkbox"
+                    checked={row.checked}
+                    onChange={() => toggleReturnRow(row.key)}
+                  />
+                </div>
+                <div className="px-2 py-1 border-r border-gray-200 text-xs">
+                  {row.item.productName}
+                </div>
+                <div className="px-2 py-1 border-r border-gray-200 text-xs">
+                  {row.item.spec || '-'}
+                </div>
+                <div className="px-2 py-1 border-r border-gray-200 text-xs">
+                  {row.item.unit || '-'}
+                </div>
+                <div className="px-2 py-1 border-r border-gray-200 text-xs text-right">
+                  {row.item.quantity}
+                </div>
+                <div className="px-1 py-1 border-r border-gray-200 text-right">
+                  <input
+                    type="number"
+                    value={row.quantity}
+                    min={0}
+                    max={row.item.quantity}
+                    step="any"
+                    disabled={!row.checked}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      changeReturnQty(row.key, e.target.value)
+                    }
+                    className="w-16 h-7 px-1 text-xs text-right border border-gray-300 rounded disabled:bg-gray-100"
+                  />
+                </div>
+                <div className="px-2 py-1 border-r border-gray-200 text-xs text-right">
+                  {row.item.price.toFixed(2)}
+                </div>
+                <div className="px-2 py-1 text-xs text-right font-medium">
+                  {(row.checked ? row.quantity * row.item.price : 0).toFixed(2)}
+                </div>
+              </div>
+            ))}
+            <div className="grid grid-cols-[0.4fr_2fr_1fr_0.7fr_0.8fr_0.9fr_0.9fr_0.9fr] border-t border-gray-200 bg-gray-50 text-sm font-semibold">
+              <div className="px-2 py-1.5 col-span-7 text-right text-gray-700">退货合计：</div>
+              <div className="px-2 py-1.5 text-right text-red-600">
+                ¥{returnPickTotal.toFixed(2)}
+              </div>
+            </div>
+          </div>
+
+          <div className="text-xs text-gray-500">
+            退货数量不得超过原单据数量；生成的退货单为草稿，到「退货单」页审核后才加回库存、冲减客户欠款。
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setReturnPickOpen(false)}
+              disabled={returnSubmitting}
+            >
+              取消
+            </Button>
+            <Button size="sm" onClick={submitReturnFromDelivery} disabled={returnSubmitting}>
+              {returnSubmitting ? '生成中…' : '生成退货单'}
             </Button>
           </DialogFooter>
         </DialogContent>

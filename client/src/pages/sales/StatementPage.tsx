@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Table, type TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
 import { Printer, Search, FileText } from 'lucide-react';
 import { toast } from 'sonner';
@@ -6,16 +6,13 @@ import { toast } from 'sonner';
 import { Button } from '@client/src/components/ui/button';
 import { Input } from '@client/src/components/ui/input';
 import { Badge } from '@client/src/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@client/src/components/ui/select';
 
 import { statementApi, customerApi } from '@client/src/api';
 import type { CustomerStatement, Customer } from '@shared/api.interface';
+import PinyinSelect from '@client/src/components/PinyinSelect';
+import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
+import { buildCustomerOptions } from '@/lib/entity-options';
+import { pinyinMatchFields } from '@/lib/pinyin-match';
 
 interface StatementRecord {
   date: string;
@@ -34,6 +31,21 @@ const StatementPage: React.FC = () => {
   const [endDate, setEndDate] = useState<string>('');
   const [statement, setStatement] = useState<CustomerStatement | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [customerFilter, setCustomerFilter] = useState<string>('');
+
+  const customerOptions = useMemo<ComboOption[]>(
+    () => buildCustomerOptions(customers),
+    [customers]
+  );
+
+  /** 左侧客户列表按拼音/原文过滤，输入 xg 也能找到「硒鼓商行」这类客户 */
+  const visibleCustomers = useMemo<Customer[]>(
+    () =>
+      customers.filter((c: Customer) =>
+        pinyinMatchFields([c.name, c.contactPerson, c.phone], customerFilter)
+      ),
+    [customers, customerFilter]
+  );
 
   useEffect(() => {
     customerApi
@@ -150,8 +162,18 @@ const StatementPage: React.FC = () => {
         <div className="p-2 border-b text-sm font-medium text-gray-700">
           客户列表
         </div>
+        <div className="p-2 border-b">
+          <Input
+            value={customerFilter}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setCustomerFilter(e.target.value)
+            }
+            placeholder="拼音/名称/电话"
+            className="h-8 text-xs"
+          />
+        </div>
         <div className="flex-1 overflow-y-auto text-sm">
-          {customers.map((c: Customer) => (
+          {visibleCustomers.map((c: Customer) => (
             <div
               key={c.id}
               onClick={() => setSelectedCustomer(c.id)}
@@ -165,7 +187,7 @@ const StatementPage: React.FC = () => {
               </div>
             </div>
           ))}
-          {customers.length === 0 && (
+          {visibleCustomers.length === 0 && (
             <div className="p-4 text-center text-gray-400 text-xs">暂无客户</div>
           )}
         </div>
@@ -182,18 +204,14 @@ const StatementPage: React.FC = () => {
           <div className="flex-1" />
 
           <div className="flex items-center gap-2 print:hidden">
-            <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-              <SelectTrigger size="sm" className="w-44">
-                <SelectValue placeholder="选择客户" />
-              </SelectTrigger>
-              <SelectContent>
-                {customers.map((c: Customer) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <PinyinSelect
+              value={selectedCustomer}
+              options={customerOptions}
+              onChange={setSelectedCustomer}
+              placeholder="选择客户"
+              allowClear={false}
+              className="w-44"
+            />
 
             <Input
               value={startDate}

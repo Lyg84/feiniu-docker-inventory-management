@@ -15,6 +15,7 @@ import {
 } from '@client/src/components/ui/dialog';
 import { warehouseApi } from '@client/src/api';
 import type { Warehouse } from '@shared/api.interface';
+import { filterByPinyin } from '@/lib/pinyin-match';
 import { showConfirm } from '@lark-apaas/client-toolkit';
 
 const defaultForm: Partial<Warehouse> = {
@@ -39,10 +40,23 @@ export default function WarehousePage() {
   const fetchData = useCallback(async (p = page, kw = searchKw) => {
     setLoading(true);
     try {
-      const res = await warehouseApi.list({ page: p, pageSize, keyword: kw });
-      setList(res.items);
-      setTotal(res.total);
-      setPage(res.page);
+      if (!kw) {
+        const res = await warehouseApi.list({ page: p, pageSize, keyword: '' });
+        setList(res.items);
+        setTotal(res.total);
+        setPage(res.page);
+        return;
+      }
+      const all = await warehouseApi.all();
+      const rows = filterByPinyin(all, kw, (w: Warehouse) => [
+        w.name,
+        w.manager,
+        w.address,
+        w.remark,
+      ]);
+      setTotal(rows.length);
+      setPage(p);
+      setList(rows.slice((p - 1) * pageSize, p * pageSize));
     } finally {
       setLoading(false);
     }
@@ -148,7 +162,7 @@ export default function WarehousePage() {
             <Input
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="按名称搜索"
+              placeholder="名称/拼音/库管员"
               className="w-48 h-8 text-sm"
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />

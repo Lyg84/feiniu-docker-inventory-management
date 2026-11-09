@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Table, TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
 import { Plus, Pencil, Trash2, Search, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
@@ -13,15 +13,11 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@client/src/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@client/src/components/ui/select';
 import { financeExpenseApi, financeItemApi } from '@client/src/api';
 import type { FinanceExpense, FinanceItem } from '@shared/api.interface';
+import PinyinSelect from '@client/src/components/PinyinSelect';
+import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
+import { buildFinanceItemOptions } from '@/lib/entity-options';
 import { showConfirm } from '@lark-apaas/client-toolkit';
 
 const todayStr = new Date().toISOString().split('T')[0];
@@ -48,6 +44,11 @@ export default function FinanceExpensePage() {
   const [form, setForm] = useState<Partial<FinanceExpense>>(defaultForm);
   const [itemList, setItemList] = useState<FinanceItem[]>([]);
   const [totalAmount, setTotalAmount] = useState(0);
+
+  const itemOptions = useMemo<ComboOption[]>(
+    () => buildFinanceItemOptions(itemList),
+    [itemList]
+  );
 
   const fetchItems = useCallback(async () => {
     try {
@@ -258,24 +259,16 @@ export default function FinanceExpensePage() {
               <Label>
                 收支项目 <span className="text-red-500">*</span>
               </Label>
-              <Select
+              <PinyinSelect
                 value={form.itemId || ''}
-                onValueChange={(val: string) => {
+                options={itemOptions}
+                onChange={(val: string) => {
                   const selected = itemList.find((it: FinanceItem) => it.id === val);
                   setForm({ ...form, itemId: val, itemName: selected?.name });
                 }}
-              >
-                <SelectTrigger size="sm" className="w-full">
-                  <SelectValue placeholder="请选择" />
-                </SelectTrigger>
-                <SelectContent>
-                  {itemList.map((it: FinanceItem) => (
-                    <SelectItem key={it.id} value={it.id}>
-                      {it.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="请选择"
+                className="w-full h-8"
+              />
             </div>
             <div className="space-y-1">
               <Label>

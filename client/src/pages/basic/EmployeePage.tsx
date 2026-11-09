@@ -15,6 +15,7 @@ import {
 } from '@client/src/components/ui/dialog';
 import { employeeApi } from '@client/src/api';
 import type { Employee } from '@shared/api.interface';
+import { filterByPinyin } from '@/lib/pinyin-match';
 import { showConfirm } from '@lark-apaas/client-toolkit';
 
 const defaultForm: Partial<Employee> = {
@@ -40,10 +41,24 @@ export default function EmployeePage() {
   const fetchData = useCallback(async (p = page, kw = searchKw) => {
     setLoading(true);
     try {
-      const res = await employeeApi.list({ page: p, pageSize, keyword: kw });
-      setList(res.items);
-      setTotal(res.total);
-      setPage(res.page);
+      if (!kw) {
+        const res = await employeeApi.list({ page: p, pageSize, keyword: '' });
+        setList(res.items);
+        setTotal(res.total);
+        setPage(res.page);
+        return;
+      }
+      const all = await employeeApi.all();
+      const rows = filterByPinyin(all, kw, (e: Employee) => [
+        e.name,
+        e.phone,
+        e.position,
+        e.department,
+        e.remark,
+      ]);
+      setTotal(rows.length);
+      setPage(p);
+      setList(rows.slice((p - 1) * pageSize, p * pageSize));
     } finally {
       setLoading(false);
     }
@@ -150,7 +165,7 @@ export default function EmployeePage() {
             <Input
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="按姓名搜索"
+              placeholder="姓名/拼音/电话"
               className="w-48 h-8 text-sm"
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />

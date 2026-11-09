@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, type TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
+import { Table, type TableColumnsType } from 'antd';
 import { Plus, Search, Eye, Pencil, Trash2, CheckCircle, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -21,10 +21,13 @@ import {
   SelectValue,
 } from '@client/src/components/ui/select';
 import { Textarea } from '@client/src/components/ui/textarea';
+import PinyinSelect from '@client/src/components/PinyinSelect';
+import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
+import { buildCustomerOptions } from '@/lib/entity-options';
 
 import { receiptApi, customerApi, salesDeliveryApi } from '@client/src/api';
 import type { Receipt, ReceiptItem, Customer, SalesDelivery } from '@shared/api.interface';
-import { showConfirm } from '@lark-apaas/client-toolkit';
+import { showConfirm } from '@/lib/confirm';
 
 interface FormItem extends ReceiptItem {
   _key: string;
@@ -70,6 +73,11 @@ const ReceiptPage: React.FC = () => {
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerDeliveries, setCustomerDeliveries] = useState<SalesDelivery[]>([]);
+
+  const customerOptions = useMemo<ComboOption[]>(
+    () => buildCustomerOptions(customers),
+    [customers]
+  );
 
   const totalWriteOff = useMemo<number>(
     () => formItems.reduce((sum: number, it: FormItem) => sum + (it.amount || 0), 0),
@@ -147,7 +155,7 @@ const ReceiptPage: React.FC = () => {
     setDialogOpen(true);
   };
 
-  /** 同送货单：列表行不带 items，明细必须走详情接口，否则「查看」里只剩金额 */
+  /** 打开查看/编辑弹窗，明细按 id 调详情接口补全 */
   const openEdit = async (record: Receipt, viewOnly: boolean = false): Promise<void> => {
     let detail: Receipt | null = null;
     try {
@@ -384,18 +392,13 @@ const ReceiptPage: React.FC = () => {
 
         <div className="h-6 w-px bg-gray-200 mx-1" />
 
-        <Select value={searchCustomer} onValueChange={setSearchCustomer}>
-          <SelectTrigger size="sm" className="w-40">
-            <SelectValue placeholder="全部客户" />
-          </SelectTrigger>
-          <SelectContent>
-            {customers.map((c: Customer) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <PinyinSelect
+          value={searchCustomer}
+          options={customerOptions}
+          onChange={setSearchCustomer}
+          placeholder="全部客户"
+          className="w-40"
+        />
 
         <Select value={searchStatus} onValueChange={setSearchStatus}>
           <SelectTrigger size="sm" className="w-28">
@@ -475,22 +478,14 @@ const ReceiptPage: React.FC = () => {
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="flex items-center gap-2">
               <label className="w-20 text-gray-600">客户<span className="text-red-500">*</span></label>
-              <Select
+              <PinyinSelect
                 value={formCustomer}
-                onValueChange={handleCustomerChange}
+                options={customerOptions}
+                onChange={handleCustomerChange}
+                placeholder="请选择客户"
                 disabled={viewMode}
-              >
-                <SelectTrigger size="sm" className="flex-1">
-                  <SelectValue placeholder="请选择客户" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((c: Customer) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                className="flex-1"
+              />
             </div>
             <div className="flex items-center gap-2">
               <label className="w-20 text-gray-600">日期</label>

@@ -117,3 +117,21 @@ export function pinyinMatchFields(
 ): boolean {
   return pinyinScoreFields(fields, keyword) >= 0;
 }
+
+/**
+ * 列表关键字过滤：命中项按匹配等级升序返回，等级相同保持原有顺序。
+ * 用于资料类列表的拼音搜索（服务端只按原文 like，拼音得在客户端过滤）。
+ */
+export function filterByPinyin<T>(
+  rows: T[],
+  keyword: string,
+  fieldsOf: (row: T) => Array<string | undefined | null>,
+): T[] {
+  const kw = (keyword || '').trim();
+  if (!kw) return rows;
+  return rows
+    .map((row, index) => ({ row, index, score: pinyinScoreFields(fieldsOf(row), kw) }))
+    .filter((r) => r.score >= 0)
+    .sort((a, b) => a.score - b.score || a.index - b.index)
+    .map((r) => r.row);
+}

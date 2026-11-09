@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Table, TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
 import { Search, RefreshCw, Calendar as CalendarIcon, Eye } from 'lucide-react';
 import { toast } from 'sonner';
@@ -46,6 +46,9 @@ import type {
   Supplier,
   DeliveryItem,
 } from '@shared/api.interface';
+import PinyinSelect from '@client/src/components/PinyinSelect';
+import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
+import { buildSupplierOptions } from '@/lib/entity-options';
 
 type TabType = 'in' | 'return' | 'payment';
 
@@ -328,6 +331,11 @@ export default function PurchaseSearchPage() {
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
 
+  const supplierOptions = useMemo<ComboOption[]>(
+    () => buildSupplierOptions(suppliers),
+    [suppliers]
+  );
+
   const [inList, setInList] = useState<PurchaseIn[]>([]);
   const [inLoading, setInLoading] = useState(false);
   const [inPage, setInPage] = useState(1);
@@ -553,17 +561,13 @@ export default function PurchaseSearchPage() {
         <div className="grid grid-cols-5 gap-3 items-end">
           <div className="space-y-1">
             <Label>供应商</Label>
-            <Select value={supplierId} onValueChange={setSupplierId}>
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder="全部" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">全部</SelectItem>
-                {suppliers.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <PinyinSelect
+              value={supplierId}
+              options={supplierOptions}
+              onChange={setSupplierId}
+              placeholder="全部供应商"
+              className="h-8"
+            />
           </div>
           <div className="space-y-1">
             <Label>日期范围</Label>

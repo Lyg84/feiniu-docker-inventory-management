@@ -24,15 +24,11 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@client/src/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@client/src/components/ui/select';
 import { materialRequisitionApi, warehouseApi, productApi } from '@client/src/api';
 import type { MaterialRequisition, Warehouse, Product } from '@shared/api.interface';
+import PinyinSelect from '@client/src/components/PinyinSelect';
+import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
+import { buildWarehouseOptions, buildProductIdOptions } from '@/lib/entity-options';
 import { showConfirm } from '@lark-apaas/client-toolkit';
 
 interface ReqItemForm {
@@ -69,6 +65,15 @@ export default function MaterialRequisitionPage() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  const warehouseOptions = useMemo<ComboOption[]>(
+    () => buildWarehouseOptions(warehouses),
+    [warehouses]
+  );
+  const productOptions = useMemo<ComboOption[]>(
+    () => buildProductIdOptions(products),
+    [products]
+  );
 
   const fetchData = useCallback(
     async (p = page, kw = searchKw) => {
@@ -381,21 +386,13 @@ export default function MaterialRequisitionPage() {
                 <Label>
                   仓库 <span className="text-red-500">*</span>
                 </Label>
-                <Select
+                <PinyinSelect
                   value={form.warehouseId || ''}
-                  onValueChange={(v) => setForm({ ...form, warehouseId: v })}
-                >
-                  <SelectTrigger className="h-8 w-full">
-                    <SelectValue placeholder="请选择仓库" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {warehouses.map((w) => (
-                      <SelectItem key={w.id} value={w.id}>
-                        {w.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={warehouseOptions}
+                  onChange={(v) => setForm({ ...form, warehouseId: v })}
+                  placeholder="请选择仓库"
+                  className="h-8 w-full"
+                />
               </div>
               <div className="space-y-1">
                 <Label>日期</Label>
@@ -467,21 +464,14 @@ export default function MaterialRequisitionPage() {
                       <tr key={index} className="border-b border-gray-100 last:border-0">
                         <td className="px-2 py-1 text-gray-500">{index + 1}</td>
                         <td className="px-2 py-1">
-                          <Select
+                          <PinyinSelect
                             value={item.productId || ''}
-                            onValueChange={(v) => handleProductChange(index, v)}
-                          >
-                            <SelectTrigger className="h-7 w-full">
-                              <SelectValue placeholder="选择商品" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {products.map((p) => (
-                                <SelectItem key={p.id} value={p.id}>
-                                  {p.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            options={productOptions}
+                            onChange={(v) => handleProductChange(index, v)}
+                            placeholder="选择商品"
+                            className="w-full"
+                            inputClassName="h-7"
+                          />
                         </td>
                         <td className="px-2 py-1">
                           <Input

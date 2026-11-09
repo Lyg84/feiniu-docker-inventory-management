@@ -27,13 +27,6 @@ import {
   PopoverTrigger,
 } from '@client/src/components/ui/popover';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@client/src/components/ui/select';
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -42,6 +35,9 @@ import {
 } from '@client/src/components/ui/dialog';
 import { purchaseInApi, supplierApi, productApi } from '@client/src/api';
 import type { PurchaseIn, DeliveryItem, Supplier, Product } from '@shared/api.interface';
+import PinyinSelect from '@client/src/components/PinyinSelect';
+import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
+import { buildSupplierOptions, buildProductIdOptions } from '@/lib/entity-options';
 import { showConfirm } from '@lark-apaas/client-toolkit';
 
 const defaultItem: DeliveryItem = {
@@ -115,6 +111,15 @@ export default function PurchaseInPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
+
+  const supplierOptions = useMemo<ComboOption[]>(
+    () => buildSupplierOptions(suppliers),
+    [suppliers]
+  );
+  const productOptions = useMemo<ComboOption[]>(
+    () => buildProductIdOptions(products),
+    [products]
+  );
 
   const fetchData = useCallback(async (p = page, kw = searchKw) => {
     setLoading(true);
@@ -443,23 +448,17 @@ export default function PurchaseInPage() {
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1">
                 <Label>供应商 <span className="text-red-500">*</span></Label>
-                <Select
+                <PinyinSelect
                   value={form.supplierId || ''}
-                  onValueChange={(v) => {
+                  options={supplierOptions}
+                  onChange={(v) => {
                     const s = suppliers.find((sup) => sup.id === v);
                     setForm({ ...form, supplierId: v, supplierName: s?.name });
                   }}
+                  placeholder="请选择供应商"
                   disabled={isDisabled || loadingSuppliers}
-                >
-                  <SelectTrigger className="h-8">
-                    <SelectValue placeholder="请选择供应商" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {suppliers.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  className="h-8"
+                />
               </div>
               <div className="space-y-1">
                 <Label>日期 <span className="text-red-500">*</span></Label>
@@ -511,19 +510,14 @@ export default function PurchaseInPage() {
                           {isDisabled ? (
                             item.productName || '-'
                           ) : (
-                            <Select
+                            <PinyinSelect
                               value={item.productId || ''}
-                              onValueChange={(v) => handleProductSelect(index, v)}
-                            >
-                              <SelectTrigger className="h-7">
-                                <SelectValue placeholder="选择商品" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {products.map((p) => (
-                                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              options={productOptions}
+                              onChange={(v) => handleProductSelect(index, v)}
+                              placeholder="选择商品"
+                              className="w-full"
+                              inputClassName="h-7"
+                            />
                           )}
                         </td>
                         <td className="px-2 py-1">

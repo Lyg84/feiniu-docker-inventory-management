@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, type TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
+import { Table, type TableColumnsType } from 'antd';
 import { Plus, Search, Eye, Pencil, Trash2, CheckCircle, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -21,10 +21,13 @@ import {
   SelectValue,
 } from '@client/src/components/ui/select';
 import { Textarea } from '@client/src/components/ui/textarea';
+import PinyinSelect from '@client/src/components/PinyinSelect';
+import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
+import { buildCustomerOptions, buildProductIdOptions } from '@/lib/entity-options';
 
 import { salesReturnApi, customerApi, productApi } from '@client/src/api';
 import type { SalesReturn, DeliveryItem, Customer, Product } from '@shared/api.interface';
-import { showConfirm } from '@lark-apaas/client-toolkit';
+import { showConfirm } from '@/lib/confirm';
 
 interface FormItem extends DeliveryItem {
   _key: string;
@@ -72,6 +75,16 @@ const SalesReturnPage: React.FC = () => {
   const totalAmount = useMemo<number>(
     () => formItems.reduce((sum: number, it: FormItem) => sum + (it.amount || 0), 0),
     [formItems]
+  );
+
+  const customerOptions = useMemo<ComboOption[]>(
+    () => buildCustomerOptions(customers),
+    [customers]
+  );
+
+  const productOptions = useMemo<ComboOption[]>(
+    () => buildProductIdOptions(products),
+    [products]
   );
 
   const loadList = useCallback((): void => {
@@ -133,7 +146,7 @@ const SalesReturnPage: React.FC = () => {
     setDialogOpen(true);
   };
 
-  /** 同送货单：列表行不带 items，明细必须走详情接口，否则「查看」里只剩金额 */
+  /** 打开查看/编辑弹窗，明细按 id 调详情接口补全 */
   const openEdit = async (record: SalesReturn, viewOnly: boolean = false): Promise<void> => {
     let detail: SalesReturn | null = null;
     try {
@@ -212,11 +225,11 @@ const SalesReturnPage: React.FC = () => {
     );
   };
 
-  const handleProductChange = (key: string, productName: string): void => {
-    const prod = products.find((p: Product) => p.name === productName);
+  const handleProductSelect = (key: string, productId: string): void => {
+    const prod = products.find((p: Product) => p.id === productId);
     updateItem(key, {
-      productName,
-      productId: prod?.id,
+      productId,
+      productName: prod?.name || '',
       spec: prod?.spec || '',
       unit: prod?.unit || '',
       price: prod?.price || 0,
@@ -339,18 +352,13 @@ const SalesReturnPage: React.FC = () => {
 
         <div className="h-6 w-px bg-gray-200 mx-1" />
 
-        <Select value={searchCustomer} onValueChange={setSearchCustomer}>
-          <SelectTrigger size="sm" className="w-40">
-            <SelectValue placeholder="全部客户" />
-          </SelectTrigger>
-          <SelectContent>
-            {customers.map((c: Customer) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <PinyinSelect
+          value={searchCustomer}
+          options={customerOptions}
+          onChange={setSearchCustomer}
+          placeholder="全部客户"
+          className="w-40"
+        />
 
         <Select value={searchStatus} onValueChange={setSearchStatus}>
           <SelectTrigger size="sm" className="w-28">
@@ -430,22 +438,14 @@ const SalesReturnPage: React.FC = () => {
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="flex items-center gap-2">
               <label className="w-16 text-gray-600">客户<span className="text-red-500">*</span></label>
-              <Select
+              <PinyinSelect
                 value={formCustomer}
-                onValueChange={setFormCustomer}
+                options={customerOptions}
+                onChange={setFormCustomer}
+                placeholder="请选择客户"
                 disabled={viewMode}
-              >
-                <SelectTrigger size="sm" className="flex-1">
-                  <SelectValue placeholder="请选择客户" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((c: Customer) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                className="flex-1"
+              />
             </div>
             <div className="flex items-center gap-2">
               <label className="w-16 text-gray-600">日期</label>
@@ -500,22 +500,19 @@ const SalesReturnPage: React.FC = () => {
                   className="grid grid-cols-[2fr_1fr_0.7fr_0.8fr_0.9fr_0.9fr_0.6fr] border-t border-gray-200 items-center"
                 >
                   <div className="px-1 py-1 border-r border-gray-200">
-                    <Select
-                      value={item.productName}
-                      onValueChange={(v: string) => handleProductChange(item._key, v)}
+                    <PinyinSelect
+                      value={
+                        item.productId ||
+                        products.find((p: Product) => p.name === item.productName)?.id ||
+                        ''
+                      }
+                      options={productOptions}
+                      onChange={(v: string) => handleProductSelect(item._key, v)}
+                      placeholder="选择商品"
                       disabled={viewMode}
-                    >
-                      <SelectTrigger size="sm" className="w-full">
-                        <SelectValue placeholder="选择商品" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {products.map((p: Product) => (
-                          <SelectItem key={p.id} value={p.name}>
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      className="w-full"
+                      inputClassName="h-7"
+                    />
                   </div>
                   <div className="px-2 py-1 border-r border-gray-200 text-xs text-gray-700">
                     {item.spec || '-'}

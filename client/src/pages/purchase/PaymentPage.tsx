@@ -41,6 +41,9 @@ import {
 } from '@client/src/components/ui/dialog';
 import { paymentApi, supplierApi, purchaseInApi } from '@client/src/api';
 import type { Payment, Supplier, PurchaseIn } from '@shared/api.interface';
+import PinyinSelect from '@client/src/components/PinyinSelect';
+import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
+import { buildSupplierOptions } from '@/lib/entity-options';
 import { showConfirm } from '@lark-apaas/client-toolkit';
 
 interface PaymentItemForm {
@@ -125,6 +128,11 @@ export default function PaymentPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [purchaseIns, setPurchaseIns] = useState<PurchaseIn[]>([]);
   const [loadingIns, setLoadingIns] = useState(false);
+
+  const supplierOptions = useMemo<ComboOption[]>(
+    () => buildSupplierOptions(suppliers),
+    [suppliers]
+  );
 
   const fetchData = useCallback(async (p = page, kw = searchKw) => {
     setLoading(true);
@@ -482,20 +490,14 @@ export default function PaymentPage() {
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1">
                 <Label>供应商 <span className="text-red-500">*</span></Label>
-                <Select
+                <PinyinSelect
                   value={form.supplierId || ''}
-                  onValueChange={handleSupplierChange}
+                  options={supplierOptions}
+                  onChange={handleSupplierChange}
+                  placeholder="请选择供应商"
                   disabled={isDisabled}
-                >
-                  <SelectTrigger className="h-8">
-                    <SelectValue placeholder="请选择供应商" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {suppliers.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  className="h-8"
+                />
               </div>
               <div className="space-y-1">
                 <Label>日期 <span className="text-red-500">*</span></Label>

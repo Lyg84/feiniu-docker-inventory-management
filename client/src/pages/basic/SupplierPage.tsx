@@ -15,6 +15,7 @@ import {
 } from '@client/src/components/ui/dialog';
 import { supplierApi } from '@client/src/api';
 import type { Supplier } from '@shared/api.interface';
+import { filterByPinyin } from '@/lib/pinyin-match';
 import { showConfirm } from '@lark-apaas/client-toolkit';
 
 const defaultForm: Partial<Supplier> = {
@@ -40,10 +41,24 @@ export default function SupplierPage() {
   const fetchData = useCallback(async (p = page, kw = searchKw) => {
     setLoading(true);
     try {
-      const res = await supplierApi.list({ page: p, pageSize, keyword: kw });
-      setList(res.items);
-      setTotal(res.total);
-      setPage(res.page);
+      if (!kw) {
+        const res = await supplierApi.list({ page: p, pageSize, keyword: '' });
+        setList(res.items);
+        setTotal(res.total);
+        setPage(res.page);
+        return;
+      }
+      const all = await supplierApi.all();
+      const rows = filterByPinyin(all, kw, (s: Supplier) => [
+        s.name,
+        s.contactPerson,
+        s.phone,
+        s.address,
+        s.remark,
+      ]);
+      setTotal(rows.length);
+      setPage(p);
+      setList(rows.slice((p - 1) * pageSize, p * pageSize));
     } finally {
       setLoading(false);
     }
@@ -150,7 +165,7 @@ export default function SupplierPage() {
             <Input
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="按名称搜索"
+              placeholder="名称/拼音/电话"
               className="w-48 h-8 text-sm"
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />

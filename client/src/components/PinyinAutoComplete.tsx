@@ -14,6 +14,8 @@ export interface ComboOption {
   weight?: number;
   /** 选中后可取回的业务对象（例如整条商品），用于同名多规格时精确定位 */
   payload?: unknown;
+  /** 显式指定参与拼音匹配的字段；不传时按 value/label/hint/extra 匹配 */
+  searchFields?: Array<string | undefined | null>;
 }
 
 interface PinyinAutoCompleteProps {
@@ -22,6 +24,8 @@ interface PinyinAutoCompleteProps {
   onChange: (text: string) => void;
   onSelect?: (value: string, option: ComboOption) => void;
   onFocus?: () => void;
+  /** 失焦回调：调用方据此把「没选中任何项」的输入回滚 */
+  onBlur?: () => void;
   placeholder?: string;
   disabled?: boolean;
   allowClear?: boolean;
@@ -45,6 +49,7 @@ const PinyinAutoComplete: React.FC<PinyinAutoCompleteProps> = ({
   onChange,
   onSelect,
   onFocus,
+  onBlur,
   placeholder,
   disabled = false,
   allowClear = false,
@@ -204,13 +209,13 @@ const PinyinAutoComplete: React.FC<PinyinAutoCompleteProps> = ({
             }
           }}
           onFocus={() => {
-            const exact = options.some((o: ComboOption) => o.value === value);
-            openList(exact);
             onFocus?.();
           }}
+          onBlur={() => onBlur?.()}
           onKeyDown={handleKeyDown}
           className={[
-            'h-8 w-full min-w-0 rounded-md border border-input bg-transparent px-2 text-sm outline-none',
+            /(^|\s)(h-|min-h-|max-h-)/.test(inputClassName || '') ? '' : 'h-8',
+            'w-full min-w-0 rounded-md border border-input bg-transparent px-2 text-sm outline-none',
             'placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50',
             'focus-visible:border-ring focus-visible:ring-ring/20 focus-visible:ring-[3px]',
             allowClear ? 'pr-12' : 'pr-6',

@@ -1,12 +1,8 @@
 import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
 import { pinyinScoreFields } from '@/lib/pinyin-match';
 
-const fieldsOf = (opt: ComboOption): Array<string | undefined | null> => [
-  opt.value,
-  opt.label,
-  opt.hint,
-  ...(opt.extra || []),
-];
+const fieldsOf = (opt: ComboOption): Array<string | undefined | null> =>
+  opt.searchFields ?? [opt.value, opt.label, opt.hint, ...(opt.extra || [])];
 
 /**
  * 关键字过滤：按匹配分数升序；同分时常用项（weight 大）在前；再同则保持原始顺序。

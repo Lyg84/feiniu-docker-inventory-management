@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Inject } from '@nestjs/common';
-import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '@lark-apaas/fullstack-nestjs-core';
+import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '@server/local';
 import { ilike, or, count, desc } from 'drizzle-orm';
 import { sysLog } from '@server/database/schema';
 import type { SysLog, PageResult } from '@shared/api.interface';

@@ -213,21 +213,34 @@ const DeliveryPage: React.FC = () => {
     setDialogOpen(true);
   };
 
-  const openEdit = (record: SalesDelivery, viewOnly: boolean = false): void => {
+  /**
+   * 打开查看/编辑弹窗。
+   * 列表接口只返回表头字段，不带 items，所以明细必须单独调详情接口取；
+   * 直接读 record.items 会让「查看」里商品行为空、只剩合计金额。
+   */
+  const openEdit = async (record: SalesDelivery, viewOnly: boolean = false): Promise<void> => {
+    let detail: SalesDelivery | null = null;
+    try {
+      detail = await salesDeliveryApi.get(record.id);
+    } catch {
+      toast.error('读取单据明细失败，先按列表摘要显示');
+    }
+    const src: SalesDelivery = detail ?? record;
     setEditId(record.id);
     setViewMode(viewOnly);
-    setFormOrderNo(record.orderNo);
-    setFormCustomer(record.customerId);
+    setFormOrderNo(src.orderNo || record.orderNo);
+    setFormCustomer(src.customerId || record.customerId);
     setCustomerInput(
-      record.customerName ||
-        customers.find((c: Customer) => c.id === record.customerId)?.name ||
+      src.customerName ||
+        record.customerName ||
+        customers.find((c: Customer) => c.id === (src.customerId || record.customerId))?.name ||
         ''
     );
-    setFormDate(record.orderDate);
-    setFormRemark(record.remark || '');
-    setFormAudited(isAudited(record));
+    setFormDate(src.orderDate || record.orderDate);
+    setFormRemark(src.remark || '');
+    setFormAudited(isAudited(src));
     setFormItems(
-      (record.items || []).map((it: DeliveryItem) => ({
+      (src.items || []).map((it: DeliveryItem) => ({
         ...it,
         _key: it.id || Math.random().toString(36).slice(2, 10),
       }))
@@ -662,7 +675,7 @@ const DeliveryPage: React.FC = () => {
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => openEdit(record, true)}
+            onClick={() => void openEdit(record, true)}
           >
             <Eye size={14} /> 查看
           </Button>
@@ -677,7 +690,7 @@ const DeliveryPage: React.FC = () => {
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => openEdit(record, false)}
+            onClick={() => void openEdit(record, false)}
             disabled={isAudited(record)}
           >
             <Pencil size={14} /> 编辑

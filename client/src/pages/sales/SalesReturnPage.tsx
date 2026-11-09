@@ -133,14 +133,22 @@ const SalesReturnPage: React.FC = () => {
     setDialogOpen(true);
   };
 
-  const openEdit = (record: SalesReturn, viewOnly: boolean = false): void => {
+  /** 同送货单：列表行不带 items，明细必须走详情接口，否则「查看」里只剩金额 */
+  const openEdit = async (record: SalesReturn, viewOnly: boolean = false): Promise<void> => {
+    let detail: SalesReturn | null = null;
+    try {
+      detail = await salesReturnApi.get(record.id);
+    } catch {
+      toast.error('读取单据明细失败，先按列表摘要显示');
+    }
+    const src: SalesReturn = detail ?? record;
     setEditId(record.id);
     setViewMode(viewOnly);
-    setFormCustomer(record.customerId);
-    setFormDate(record.returnDate);
-    setFormRemark(record.remark || '');
+    setFormCustomer(src.customerId || record.customerId);
+    setFormDate(src.returnDate || record.returnDate);
+    setFormRemark(src.remark || '');
     setFormItems(
-      (record.items || []).map((it: DeliveryItem) => ({
+      (src.items || []).map((it: DeliveryItem) => ({
         ...it,
         _key: it.id || Math.random().toString(36).slice(2, 10),
       }))
@@ -280,14 +288,14 @@ const SalesReturnPage: React.FC = () => {
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => openEdit(record, true)}
+            onClick={() => void openEdit(record, true)}
           >
             <Eye size={14} /> 查看
           </Button>
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => openEdit(record, false)}
+            onClick={() => void openEdit(record, false)}
             disabled={isAudited(record)}
           >
             <Pencil size={14} /> 编辑

@@ -116,7 +116,10 @@ export class SysLogInterceptor implements NestInterceptor {
         }
       } else {
         const summary = SysLogService.summarize(req.body);
+        // 审核/删除这类请求 body 为空，摘要里没有对象标识；补上路径，
+        // 让 detail 能定位到具体单据（如 /sales-deliveries/<id>/audit）
         if (summary) parts.push(summary);
+        else parts.push(`路径=${path}`);
       }
       parts.push(`HTTP=${status}`, `耗时=${Date.now() - startedAt}ms`);
       if (error) {

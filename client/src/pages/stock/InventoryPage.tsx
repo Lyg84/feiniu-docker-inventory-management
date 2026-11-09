@@ -10,6 +10,7 @@ import PinyinSelect from '@client/src/components/PinyinSelect';
 import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
 import { buildWarehouseOptions } from '@/lib/entity-options';
 import { filterByPinyin } from '@/lib/pinyin-match';
+import { exportToExcel, todayStamp } from '@/lib/excel-export';
 
 export default function InventoryPage() {
   const [list, setList] = useState<Product[]>([]);
@@ -22,6 +23,7 @@ export default function InventoryPage() {
   const [warehouseId, setWarehouseId] = useState('');
   const [searchWarehouseId, setSearchWarehouseId] = useState('');
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [exporting, setExporting] = useState(false);
 
   const warehouseOptions = useMemo<ComboOption[]>(
     () => buildWarehouseOptions(warehouses),
@@ -86,8 +88,58 @@ export default function InventoryPage() {
     fetchData(page, searchKw, searchWarehouseId);
   };
 
-  const handleExport = () => {
-    toast.info('导出功能暂未实现');
+  /** 导出当前查询下的全部存货（不只是当前页） */
+  const handleExport = async (): Promise<void> => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const res = await inventoryApi.list({
+        page: 1,
+        pageSize: 100000,
+        keyword: '',
+        warehouseId: searchWarehouseId,
+      });
+      let rows = res.items;
+      if (searchKw) {
+        rows = filterByPinyin(rows, searchKw, (r: Product) => [
+          r.name,
+          r.spec,
+          r.unit,
+          r.category,
+          r.remark,
+        ]);
+      }
+      if (rows.length === 0) {
+        toast.error('当前条件下没有可导出的存货');
+        return;
+      }
+      exportToExcel<Product>({
+        fileName: `库存查询_${todayStamp()}`,
+        sheetName: '库存',
+        rows,
+        columns: [
+          { header: '商品名称', value: (r: Product) => r.name, width: 24 },
+          { header: '规格', value: (r: Product) => r.spec ?? '', width: 16 },
+          { header: '单位', value: (r: Product) => r.unit ?? '', width: 8 },
+          { header: '单价', value: (r: Product) => r.price, numeric: true, width: 12 },
+          { header: '库存数量', value: (r: Product) => r.stockQty, numeric: true, width: 12 },
+          {
+            header: '库存金额',
+            value: (r: Product) => (r.price || 0) * (r.stockQty || 0),
+            numeric: true,
+            width: 14,
+          },
+          { header: '类别', value: (r: Product) => r.category ?? '', width: 14 },
+          { header: '备注', value: (r: Product) => r.remark ?? '', width: 24 },
+        ],
+        note: `导出时间：${new Date().toLocaleString('zh-CN')}  共 ${rows.length} 条`,
+      });
+      toast.success('已导出 Excel');
+    } catch {
+      toast.error('导出失败，请稍后重试');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const totalAmount = useMemo(
@@ -160,9 +212,9 @@ export default function InventoryPage() {
             <RefreshCw className="w-3 h-3" />
             刷新
           </Button>
-          <Button size="sm" variant="outline" onClick={handleExport}>
+          <Button size="sm" variant="outline" onClick={() => void handleExport()} disabled={exporting}>
             <Download className="w-3 h-3" />
-            导出
+            {exporting ? '导出中…' : '导出 Excel'}
           </Button>
         </div>
       </div>

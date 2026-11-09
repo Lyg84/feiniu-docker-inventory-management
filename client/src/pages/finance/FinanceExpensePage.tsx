@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Table, TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
-import { Plus, Pencil, Trash2, Search, RefreshCw } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, RefreshCw, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@client/src/components/ui/button';
 import { Input } from '@client/src/components/ui/input';
@@ -19,6 +19,7 @@ import PinyinSelect from '@client/src/components/PinyinSelect';
 import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
 import { buildFinanceItemOptions } from '@/lib/entity-options';
 import { showConfirm } from '@lark-apaas/client-toolkit';
+import { exportToExcel, fetchAllPages, todayStamp } from '@/lib/excel-export';
 
 const todayStr = new Date().toISOString().split('T')[0];
 
@@ -44,6 +45,7 @@ export default function FinanceExpensePage() {
   const [form, setForm] = useState<Partial<FinanceExpense>>(defaultForm);
   const [itemList, setItemList] = useState<FinanceItem[]>([]);
   const [totalAmount, setTotalAmount] = useState(0);
+  const [exporting, setExporting] = useState(false);
 
   const itemOptions = useMemo<ComboOption[]>(
     () => buildFinanceItemOptions(itemList),
@@ -143,6 +145,40 @@ export default function FinanceExpensePage() {
     }
   };
 
+  /** 导出当前查询条件下的全部支出单（不只是当前页） */
+  const handleExport = async (): Promise<void> => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const rows = await fetchAllPages<FinanceExpense>((p, ps) =>
+        financeExpenseApi.list({ page: p, pageSize: ps, keyword: searchKw }),
+      );
+      if (rows.length === 0) {
+        toast.error('当前条件下没有可导出的支出单');
+        return;
+      }
+      exportToExcel<FinanceExpense>({
+        fileName: `财务支出单_${todayStamp()}`,
+        sheetName: '支出单',
+        rows,
+        columns: [
+          { header: '支出单号', value: (r: FinanceExpense) => r.expenseNo, width: 18 },
+          { header: '日期', value: (r: FinanceExpense) => r.expenseDate, width: 12 },
+          { header: '收支项目', value: (r: FinanceExpense) => r.itemName ?? '', width: 16 },
+          { header: '金额', value: (r: FinanceExpense) => r.amount, numeric: true, width: 12 },
+          { header: '收款方', value: (r: FinanceExpense) => r.payee ?? '', width: 18 },
+          { header: '备注', value: (r: FinanceExpense) => r.remark ?? '', width: 24 },
+        ],
+        note: `导出时间：${new Date().toLocaleString('zh-CN')}  共 ${rows.length} 条`,
+      });
+      toast.success('已导出 Excel');
+    } catch {
+      toast.error('导出失败，请稍后重试');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const columns: TableColumnsType<FinanceExpense> = [
     { title: '支出单号', dataIndex: 'expenseNo', width: 180, fixed: 'left' },
     { title: '日期', dataIndex: 'expenseDate', width: 120 },
@@ -209,6 +245,10 @@ export default function FinanceExpensePage() {
           <Button size="sm" variant="outline" onClick={handleRefresh}>
             <RefreshCw className="w-3 h-3" />
             刷新
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => void handleExport()} disabled={exporting}>
+            <Download className="w-3 h-3" />
+            {exporting ? '导出中…' : '导出 Excel'}
           </Button>
           <Button size="sm" variant="default" onClick={handleAdd}>
             <Plus className="w-3 h-3" />

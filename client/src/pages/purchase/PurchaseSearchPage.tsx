@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Table, TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
-import { Search, RefreshCw, Calendar as CalendarIcon, Eye } from 'lucide-react';
+import { Search, RefreshCw, Calendar as CalendarIcon, Eye, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Button } from '@client/src/components/ui/button';
@@ -49,6 +49,7 @@ import type {
 import PinyinSelect from '@client/src/components/PinyinSelect';
 import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
 import { buildSupplierOptions } from '@/lib/entity-options';
+import { exportToExcel, fetchAllPages, todayStamp } from '@/lib/excel-export';
 
 type TabType = 'in' | 'return' | 'payment';
 
@@ -366,6 +367,7 @@ export default function PurchaseSearchPage() {
   const [detailReturn, setDetailReturn] = useState<PurchaseReturn | null>(null);
   const [detailPayment, setDetailPayment] = useState<Payment | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     supplierApi.all().then((data) => setSuppliers(data)).catch(() => {});
@@ -490,6 +492,95 @@ export default function PurchaseSearchPage() {
     }
   };
 
+  /** 导出当前查询条件下的全部结果（不只是当前页） */
+  const handleExport = async (): Promise<void> => {
+    if (exporting) return;
+    setExporting(true);
+    const auditText = (v?: string): string => (v === 'audited' ? '已审核' : '草稿');
+    const params = {
+      supplierId: searchParams.supplierId,
+      startDate: searchParams.startDate,
+      endDate: searchParams.endDate,
+      keyword: searchParams.keyword,
+      auditStatus: searchParams.status,
+    };
+    try {
+      if (activeTab === 'in') {
+        const rows = await fetchAllPages<PurchaseIn>((page, pageSize) =>
+          purchaseInApi.list({ ...params, page, pageSize }),
+        );
+        if (rows.length === 0) {
+          toast.error('当前条件下没有可导出的采购入库单');
+          return;
+        }
+        exportToExcel<PurchaseIn>({
+          fileName: `采购入库单_${todayStamp()}`,
+          sheetName: '采购入库单',
+          rows,
+          columns: [
+            { header: '入库单号', value: (r: PurchaseIn) => r.inNo, width: 18 },
+            { header: '日期', value: (r: PurchaseIn) => r.inDate, width: 12 },
+            { header: '供应商', value: (r: PurchaseIn) => r.supplierName, width: 22 },
+            { header: '总金额', value: (r: PurchaseIn) => r.totalAmount, numeric: true, width: 12 },
+            { header: '已付款', value: (r: PurchaseIn) => r.paidAmount, numeric: true, width: 12 },
+            { header: '应付款', value: (r: PurchaseIn) => r.debtAmount, numeric: true, width: 12 },
+            { header: '状态', value: (r: PurchaseIn) => auditText(r.auditStatus), width: 10 },
+          ],
+          note: `导出时间：${new Date().toLocaleString('zh-CN')}  共 ${rows.length} 条`,
+        });
+      } else if (activeTab === 'return') {
+        const rows = await fetchAllPages<PurchaseReturn>((page, pageSize) =>
+          purchaseReturnApi.list({ ...params, page, pageSize }),
+        );
+        if (rows.length === 0) {
+          toast.error('当前条件下没有可导出的采购退货单');
+          return;
+        }
+        exportToExcel<PurchaseReturn>({
+          fileName: `采购退货单_${todayStamp()}`,
+          sheetName: '采购退货单',
+          rows,
+          columns: [
+            { header: '退货单号', value: (r: PurchaseReturn) => r.returnNo, width: 18 },
+            { header: '日期', value: (r: PurchaseReturn) => r.returnDate, width: 12 },
+            { header: '供应商', value: (r: PurchaseReturn) => r.supplierName, width: 22 },
+            { header: '总金额', value: (r: PurchaseReturn) => r.totalAmount, numeric: true, width: 12 },
+            { header: '状态', value: (r: PurchaseReturn) => auditText(r.auditStatus), width: 10 },
+          ],
+          note: `导出时间：${new Date().toLocaleString('zh-CN')}  共 ${rows.length} 条`,
+        });
+      } else {
+        const rows = await fetchAllPages<Payment>((page, pageSize) =>
+          paymentApi.list({ ...params, page, pageSize }),
+        );
+        if (rows.length === 0) {
+          toast.error('当前条件下没有可导出的采购付款单');
+          return;
+        }
+        exportToExcel<Payment>({
+          fileName: `采购付款单_${todayStamp()}`,
+          sheetName: '采购付款单',
+          rows,
+          columns: [
+            { header: '付款单号', value: (r: Payment) => r.paymentNo, width: 18 },
+            { header: '日期', value: (r: Payment) => r.paymentDate, width: 12 },
+            { header: '供应商', value: (r: Payment) => r.supplierName, width: 22 },
+            { header: '付款金额', value: (r: Payment) => r.totalAmount, numeric: true, width: 12 },
+            { header: '核销金额', value: (r: Payment) => r.writeOffAmount, numeric: true, width: 12 },
+            { header: '付款方式', value: (r: Payment) => r.paymentMethod ?? '', width: 12 },
+            { header: '状态', value: (r: Payment) => auditText(r.auditStatus), width: 10 },
+          ],
+          note: `导出时间：${new Date().toLocaleString('zh-CN')}  共 ${rows.length} 条`,
+        });
+      }
+      toast.success('已导出 Excel');
+    } catch {
+      toast.error('导出失败，请稍后重试');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const inColumns: TableColumnsType<PurchaseIn> = [
     { title: '入库单号', dataIndex: 'inNo', width: 160, fixed: 'left' },
     { title: '日期', dataIndex: 'inDate', width: 110 },
@@ -610,6 +701,10 @@ export default function PurchaseSearchPage() {
             <Button size="sm" variant="outline" onClick={handleRefresh}>
               <RefreshCw className="w-3 h-3" />
               刷新
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => void handleExport()} disabled={exporting}>
+              <Download className="w-3 h-3" />
+              {exporting ? '导出中…' : '导出 Excel'}
             </Button>
           </div>
         </div>

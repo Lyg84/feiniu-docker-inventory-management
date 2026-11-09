@@ -10,6 +10,7 @@ import {
   Undo2,
   PlusCircle,
   MinusCircle,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@client/src/components/ui/button';
@@ -30,6 +31,7 @@ import PinyinSelect from '@client/src/components/PinyinSelect';
 import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
 import { buildWarehouseOptions, buildProductIdOptions } from '@/lib/entity-options';
 import { showConfirm } from '@lark-apaas/client-toolkit';
+import { exportToExcel, fetchAllPages, todayStamp } from '@/lib/excel-export';
 
 interface StockInItemForm {
   id?: string;
@@ -62,6 +64,7 @@ export default function StockInPage() {
   const [items, setItems] = useState<StockInItemForm[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [exporting, setExporting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const warehouseOptions = useMemo<ComboOption[]>(
@@ -247,6 +250,44 @@ export default function StockInPage() {
     }
   };
 
+  /** 导出当前查询条件下的全部进仓单（不只是当前页） */
+  const handleExport = async (): Promise<void> => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const rows = await fetchAllPages<StockIn>((p, ps) =>
+        stockInApi.list({ page: p, pageSize: ps, keyword: searchKw }),
+      );
+      if (rows.length === 0) {
+        toast.error('当前条件下没有可导出的进仓单');
+        return;
+      }
+      exportToExcel<StockIn>({
+        fileName: `产品进仓单_${todayStamp()}`,
+        sheetName: '进仓单',
+        rows,
+        columns: [
+          { header: '进仓单号', value: (r: StockIn) => r.inNo, width: 18 },
+          { header: '日期', value: (r: StockIn) => r.inDate, width: 12 },
+          { header: '仓库', value: (r: StockIn) => r.warehouseName ?? '', width: 16 },
+          { header: '总数量', value: (r: StockIn) => r.totalQty, numeric: true, width: 12 },
+          {
+            header: '状态',
+            value: (r: StockIn) => (r.auditStatus === 'audited' ? '已审核' : '草稿'),
+            width: 10,
+          },
+          { header: '备注', value: (r: StockIn) => r.remark ?? '', width: 24 },
+        ],
+        note: `导出时间：${new Date().toLocaleString('zh-CN')}  共 ${rows.length} 条`,
+      });
+      toast.success('已导出 Excel');
+    } catch {
+      toast.error('导出失败，请稍后重试');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const columns: TableColumnsType<StockIn> = [
     { title: '进仓单号', dataIndex: 'inNo', width: 160, fixed: 'left' },
     { title: '日期', dataIndex: 'inDate', width: 110 },
@@ -344,6 +385,10 @@ export default function StockInPage() {
           <Button size="sm" variant="outline" onClick={handleRefresh}>
             <RefreshCw className="w-3 h-3" />
             刷新
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => void handleExport()} disabled={exporting}>
+            <Download className="w-3 h-3" />
+            {exporting ? '导出中…' : '导出 Excel'}
           </Button>
           <Button size="sm" variant="default" onClick={handleAdd}>
             <Plus className="w-3 h-3" />

@@ -9,6 +9,7 @@ import {
 import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '@lark-apaas/fullstack-nestjs-core';
 import { and, asc, count, desc, eq, ilike, sql } from 'drizzle-orm';
 import type { Payment } from '@shared/api.interface';
+import { getOrderNoSettings } from '@server/modules/system/order-no-config';
 import {
   payment,
   paymentItem,
@@ -349,20 +350,23 @@ export class PaymentService {
     const day = String(today.getDate()).padStart(2, '0');
     const datePart = `${year}${month}${day}`;
     const prefix = `FK${datePart}`;
+    // 单据号按月连续编号：当月范围内取最大流水号
+    const monthPrefix = prefix.slice(0, 8);
+    const cfg = await getOrderNoSettings(this.db);
 
     const rows = await this.db
       .select({ paymentNo: payment.paymentNo })
       .from(payment)
-      .where(ilike(payment.paymentNo, `${prefix}%`))
-      .orderBy(desc(payment.paymentNo))
+      .where(ilike(payment.paymentNo, `${monthPrefix}%`))
+      .orderBy(desc(sql`(substring(${payment.paymentNo} from 11))::int`))
       .limit(1);
 
-    let seq = 1;
+    let seq = cfg.start;
     if (rows.length > 0 && rows[0].paymentNo) {
-      const lastSeq = parseInt(rows[0].paymentNo.slice(prefix.length), 10);
+      const lastSeq = parseInt(rows[0].paymentNo.slice(10), 10);
       if (!isNaN(lastSeq)) seq = lastSeq + 1;
     }
 
-    return `${prefix}${String(seq).padStart(4, '0')}`;
+    return `${prefix}${String(seq).padStart(cfg.digits, '0')}`;
   }
 }

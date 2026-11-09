@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Table, type TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
-import { Search, Eye } from 'lucide-react';
+import { Search, Eye, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@client/src/components/ui/button';
@@ -44,6 +44,7 @@ import type {
 import PinyinSelect from '@client/src/components/PinyinSelect';
 import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
 import { buildCustomerOptions } from '@/lib/entity-options';
+import { exportToExcel, fetchAllPages, todayStamp } from '@/lib/excel-export';
 
 type TabKey = 'delivery' | 'return' | 'receipt';
 
@@ -79,6 +80,7 @@ const SalesSearchPage: React.FC = () => {
   const [receiptTotal, setReceiptTotal] = useState<number>(0);
 
   const [loading, setLoading] = useState<boolean>(false);
+  const [exporting, setExporting] = useState<boolean>(false);
   const [pageSize] = useState<number>(20);
 
   // detail dialog
@@ -196,6 +198,95 @@ const SalesSearchPage: React.FC = () => {
     setSearchStart('');
     setSearchEnd('');
     handleSearch();
+  };
+
+  /** 导出当前查询条件下的全部结果（不只是当前页） */
+  const handleExport = async (): Promise<void> => {
+    if (exporting) return;
+    setExporting(true);
+    const baseParams: Record<string, unknown> = {};
+    if (searchCustomer) baseParams.customerId = searchCustomer;
+    if (searchStatus) baseParams.auditStatus = searchStatus;
+    if (searchKeyword) baseParams.keyword = searchKeyword;
+    if (searchStart) baseParams.startDate = searchStart;
+    if (searchEnd) baseParams.endDate = searchEnd;
+    const auditText = (v?: string): string => (v === 'audited' ? '已审核' : '草稿');
+    try {
+      if (activeTab === 'delivery') {
+        const rows = await fetchAllPages<SalesDelivery>((page, pageSize) =>
+          salesDeliveryApi.list({ ...baseParams, page: String(page), pageSize: String(pageSize) }),
+        );
+        if (rows.length === 0) {
+          toast.error('当前条件下没有可导出的送货单');
+          return;
+        }
+        exportToExcel<SalesDelivery>({
+          fileName: `销售送货单_${todayStamp()}`,
+          sheetName: '送货单',
+          rows,
+          columns: [
+            { header: '送货单号', value: (r: SalesDelivery) => r.orderNo, width: 18 },
+            { header: '日期', value: (r: SalesDelivery) => r.orderDate, width: 12 },
+            { header: '客户名称', value: (r: SalesDelivery) => r.customerName, width: 22 },
+            { header: '总金额', value: (r: SalesDelivery) => r.totalAmount, numeric: true, width: 12 },
+            { header: '已收款', value: (r: SalesDelivery) => r.paidAmount, numeric: true, width: 12 },
+            { header: '欠款', value: (r: SalesDelivery) => r.debtAmount, numeric: true, width: 12 },
+            { header: '状态', value: (r: SalesDelivery) => auditText(r.auditStatus), width: 10 },
+          ],
+          note: `导出时间：${new Date().toLocaleString('zh-CN')}  共 ${rows.length} 条`,
+        });
+      } else if (activeTab === 'return') {
+        const rows = await fetchAllPages<SalesReturn>((page, pageSize) =>
+          salesReturnApi.list({ ...baseParams, page: String(page), pageSize: String(pageSize) }),
+        );
+        if (rows.length === 0) {
+          toast.error('当前条件下没有可导出的退货单');
+          return;
+        }
+        exportToExcel<SalesReturn>({
+          fileName: `销售退货单_${todayStamp()}`,
+          sheetName: '退货单',
+          rows,
+          columns: [
+            { header: '退货单号', value: (r: SalesReturn) => r.returnNo, width: 18 },
+            { header: '日期', value: (r: SalesReturn) => r.returnDate, width: 12 },
+            { header: '客户名称', value: (r: SalesReturn) => r.customerName, width: 22 },
+            { header: '总金额', value: (r: SalesReturn) => r.totalAmount, numeric: true, width: 12 },
+            { header: '状态', value: (r: SalesReturn) => auditText(r.auditStatus), width: 10 },
+            { header: '原送货单', value: (r: SalesReturn) => r.deliveryNo ?? '', width: 18 },
+          ],
+          note: `导出时间：${new Date().toLocaleString('zh-CN')}  共 ${rows.length} 条`,
+        });
+      } else {
+        const rows = await fetchAllPages<Receipt>((page, pageSize) =>
+          receiptApi.list({ ...baseParams, page: String(page), pageSize: String(pageSize) }),
+        );
+        if (rows.length === 0) {
+          toast.error('当前条件下没有可导出的收款单');
+          return;
+        }
+        exportToExcel<Receipt>({
+          fileName: `销售收款单_${todayStamp()}`,
+          sheetName: '收款单',
+          rows,
+          columns: [
+            { header: '收款单号', value: (r: Receipt) => r.receiptNo, width: 18 },
+            { header: '日期', value: (r: Receipt) => r.receiptDate, width: 12 },
+            { header: '客户名称', value: (r: Receipt) => r.customerName, width: 22 },
+            { header: '收款金额', value: (r: Receipt) => r.totalAmount, numeric: true, width: 12 },
+            { header: '核销金额', value: (r: Receipt) => r.writeOffAmount, numeric: true, width: 12 },
+            { header: '收款方式', value: (r: Receipt) => r.paymentMethod ?? '', width: 12 },
+            { header: '状态', value: (r: Receipt) => auditText(r.auditStatus), width: 10 },
+          ],
+          note: `导出时间：${new Date().toLocaleString('zh-CN')}  共 ${rows.length} 条`,
+        });
+      }
+      toast.success('已导出 Excel');
+    } catch {
+      toast.error('导出失败，请稍后重试');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const viewDelivery = async (record: SalesDelivery): Promise<void> => {
@@ -775,6 +866,14 @@ const SalesSearchPage: React.FC = () => {
         </Button>
         <Button size="sm" variant="outline" onClick={handleReset}>
           重置
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => void handleExport()}
+          disabled={exporting}
+        >
+          <Download size={14} /> {exporting ? '导出中…' : '导出 Excel'}
         </Button>
       </div>
 

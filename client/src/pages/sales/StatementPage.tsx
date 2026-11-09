@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Table, type TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
-import { Printer, Search, FileText } from 'lucide-react';
+import { Printer, Search, FileText, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@client/src/components/ui/button';
@@ -13,6 +13,7 @@ import PinyinSelect from '@client/src/components/PinyinSelect';
 import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
 import { buildCustomerOptions } from '@/lib/entity-options';
 import { pinyinMatchFields } from '@/lib/pinyin-match';
+import { exportToExcel, todayStamp } from '@/lib/excel-export';
 
 interface StatementRecord {
   date: string;
@@ -87,6 +88,40 @@ const StatementPage: React.FC = () => {
 
   const handlePrint = (): void => {
     window.print();
+  };
+
+  /** 把当前对账单导出成 Excel */
+  const handleExport = (): void => {
+    if (!statement) {
+      toast.error('请先选择客户并对账单加载完成');
+      return;
+    }
+    const rows: StatementRecord[] = statement.records ?? [];
+    if (rows.length === 0) {
+      toast.error('当前条件没有对账明细');
+      return;
+    }
+    const typeText = (v: string): string => {
+      if (v === 'delivery') return '销售送货';
+      if (v === 'receipt') return '收款';
+      return '销售退货';
+    };
+    exportToExcel<StatementRecord>({
+      fileName: `客户对账单_${statement.customerName || ''}_${todayStamp()}`,
+      sheetName: '对账单',
+      rows,
+      columns: [
+        { header: '日期', value: (r: StatementRecord) => r.date, width: 12 },
+        { header: '单据类型', value: (r: StatementRecord) => typeText(r.type), width: 12 },
+        { header: '单号', value: (r: StatementRecord) => r.no, width: 18 },
+        { header: '销售额', value: (r: StatementRecord) => r.salesAmount, numeric: true, width: 12 },
+        { header: '收款额', value: (r: StatementRecord) => r.receiptAmount, numeric: true, width: 12 },
+        { header: '退货额', value: (r: StatementRecord) => r.returnAmount, numeric: true, width: 12 },
+        { header: '余额', value: (r: StatementRecord) => r.balance, numeric: true, width: 12 },
+      ],
+      note: `客户：${statement.customerName || '-'}  期间：${startDate || '全部'} ~ ${endDate || '全部'}  本期收款 ¥${(statement.totalReceipt ?? 0).toFixed(2)}  期末欠款 ¥${(statement.debtAmount ?? 0).toFixed(2)}  导出时间：${new Date().toLocaleString('zh-CN')}`,
+    });
+    toast.success('已导出 Excel');
   };
 
   const columns: TableColumnsType<StatementRecord> = [
@@ -245,6 +280,14 @@ const StatementPage: React.FC = () => {
             className="print:hidden"
           >
             <Printer size={14} /> 打印
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleExport}
+            className="print:hidden"
+          >
+            <Download size={14} /> 导出 Excel
           </Button>
         </div>
 

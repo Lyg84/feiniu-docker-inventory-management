@@ -8,6 +8,10 @@ import {
   salesDelivery,
 } from '@server/database/schema';
 import type { Receipt, ReceiptItem, PageResult } from '@shared/api.interface';
+import {
+  formatOrderNo,
+  getOrderNoSettings,
+} from '@server/modules/system/order-no-config';
 
 interface ListQuery {
   page?: number;
@@ -61,21 +65,23 @@ export class ReceiptService {
     const d = String(today.getDate()).padStart(2, '0');
     const dateStr = `${y}${m}${d}`;
     const prefix = `SK${dateStr}`;
+    // 单据号按月连续编号：当月范围内取最大流水号
+    const monthPrefix = prefix.slice(0, 8);
+    const cfg = await getOrderNoSettings(this.db);
 
     const result = await this.db
       .select({ receiptNo: receipt.receiptNo })
       .from(receipt)
-      .where(like(receipt.receiptNo, `${prefix}%`))
-      .orderBy(desc(receipt.receiptNo))
+      .where(like(receipt.receiptNo, `${monthPrefix}%`))
+      .orderBy(desc(sql`(substring(${receipt.receiptNo} from 11))::int`))
       .limit(1);
 
-    let seq = 1;
+    let seq = cfg.start;
     if (result.length > 0 && result[0].receiptNo) {
-      const numStr = result[0].receiptNo.slice(prefix.length);
-      const num = parseInt(numStr, 10);
-      if (!Number.isNaN(num)) seq = num + 1;
+      const n = Number.parseInt(result[0].receiptNo.slice(10), 10);
+      if (!Number.isNaN(n)) seq = n + 1;
     }
-    return `${prefix}${String(seq).padStart(4, '0')}`;
+    return formatOrderNo(prefix, seq, cfg.digits);
   }
 
   async list(query: ListQuery): Promise<PageResult<Receipt>> {

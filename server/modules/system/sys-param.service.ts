@@ -19,6 +19,36 @@ const DEFAULT_PARAMS: Array<{ paramKey: string; paramName: string; paramValue: s
     paramValue: '',
     remark: '打印在单据抬头的公司名，留空则显示「送货单」',
   },
+  {
+    paramKey: 'contact_person',
+    paramName: '联系人',
+    paramValue: '',
+    remark: '打印在单据上的联系人姓名',
+  },
+  {
+    paramKey: 'contact_phone',
+    paramName: '联系方式',
+    paramValue: '',
+    remark: '打印在单据上的联系电话',
+  },
+  {
+    paramKey: 'contact_address',
+    paramName: '地址',
+    paramValue: '',
+    remark: '打印在单据上的公司地址',
+  },
+  {
+    paramKey: 'order_no_digits',
+    paramName: '单据号位数',
+    paramValue: '4',
+    remark: '单号流水号位数，默认 4（XS202611090002 的 0002 就是 4 位）',
+  },
+  {
+    paramKey: 'order_no_start',
+    paramName: '起始单据号',
+    paramValue: '1',
+    remark: '每月第一张单据的流水号，默认 1，之后按号连续往下排',
+  },
 ];
 
 function toDto(row: typeof sysParam.$inferSelect): SysParam {

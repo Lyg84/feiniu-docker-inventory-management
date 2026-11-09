@@ -9,6 +9,7 @@ import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '@lark-apaas/fullstack
 import { eq, ilike, count, desc, and, gte, lt, sql } from 'drizzle-orm';
 import { stockOut, stockOutItem, warehouse, product } from '@server/database/schema';
 import type { StockOut, PageResult } from '@shared/api.interface';
+import { getOrderNoSettings } from '@server/modules/system/order-no-config';
 
 interface StockOutItemInput {
   id?: string;
@@ -314,24 +315,27 @@ export class StockOutService {
     const d = String(now.getDate()).padStart(2, '0');
     const datePart = `${y}${m}${d}`;
     const prefix = `CK${datePart}`;
+    // 单据号按月连续编号：当月范围内取最大流水号
+    const monthPrefix = prefix.slice(0, 8);
+    const cfg = await getOrderNoSettings(this.db);
 
     const rows = await this.db
       .select({ outNo: stockOut.outNo })
       .from(stockOut)
-      .where(ilike(stockOut.outNo, `${prefix}%`))
-      .orderBy(desc(stockOut.outNo))
+      .where(ilike(stockOut.outNo, `${monthPrefix}%`))
+      .orderBy(desc(sql`(substring(${stockOut.outNo} from 11))::int`))
       .limit(1);
 
-    let seq = 1;
+    let seq = cfg.start;
     if (rows.length > 0) {
       const lastNo = rows[0].outNo;
-      const lastSeq = parseInt(lastNo.slice(prefix.length), 10);
+      const lastSeq = parseInt(lastNo.slice(10), 10);
       if (!isNaN(lastSeq)) {
         seq = lastSeq + 1;
       }
     }
 
-    return `${prefix}${String(seq).padStart(4, '0')}`;
+    return `${prefix}${String(seq).padStart(cfg.digits, '0')}`;
   }
 
   private toDto(row: {

@@ -123,6 +123,9 @@ const DeliveryPage: React.FC = () => {
   // 打印纸型 / 公司名：来自系统参数设置
   const [paperKey, setPaperKey] = useState<string>(DEFAULT_PAPER_KEY);
   const [companyName, setCompanyName] = useState<string>('');
+  const [contactPerson, setContactPerson] = useState<string>('');
+  const [contactPhone, setContactPhone] = useState<string>('');
+  const [contactAddress, setContactAddress] = useState<string>('');
 
   // 列表勾选（批量打印 / 批量审核）
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -207,7 +210,7 @@ const DeliveryPage: React.FC = () => {
       .finally(() => setOptionsLoading(false));
   }, []);
 
-  // 读取系统参数：打印纸型、公司名称
+  // 读取系统参数：打印纸型、公司名称、联系方式
   useEffect(() => {
     systemApi
       .paramList()
@@ -216,6 +219,12 @@ const DeliveryPage: React.FC = () => {
         if (paper) setPaperKey(paper);
         const company = params.find((p) => p.paramKey === 'company_name')?.paramValue;
         if (company) setCompanyName(company);
+        const person = params.find((p) => p.paramKey === 'contact_person')?.paramValue;
+        if (person) setContactPerson(person);
+        const phone = params.find((p) => p.paramKey === 'contact_phone')?.paramValue;
+        if (phone) setContactPhone(phone);
+        const address = params.find((p) => p.paramKey === 'contact_address')?.paramValue;
+        if (address) setContactAddress(address);
       })
       .catch(() => {
         /* 参数接口失败就按默认纸型打印，不挡开单 */
@@ -652,6 +661,9 @@ const DeliveryPage: React.FC = () => {
     const html = buildDeliveryTicketHtml(
       {
         companyName: companyName || undefined,
+        contactPerson: contactPerson || undefined,
+        contactPhone: contactPhone || undefined,
+        contactAddress: contactAddress || undefined,
         orderNo: payload.orderNo,
         orderDate: payload.orderDate,
         customerName: payload.customerName,

@@ -14,6 +14,7 @@ import {
   product,
 } from '@server/database/schema';
 import type { MaterialReturn, PageResult } from '@shared/api.interface';
+import { getOrderNoSettings } from '@server/modules/system/order-no-config';
 
 interface MaterialReturnItemInput {
   id?: string;
@@ -328,24 +329,27 @@ export class MaterialReturnService {
     const d = String(now.getDate()).padStart(2, '0');
     const datePart = `${y}${m}${d}`;
     const prefix = `TL${datePart}`;
+    // 单据号按月连续编号：当月范围内取最大流水号
+    const monthPrefix = prefix.slice(0, 8);
+    const cfg = await getOrderNoSettings(this.db);
 
     const rows = await this.db
       .select({ returnNo: materialReturn.returnNo })
       .from(materialReturn)
-      .where(ilike(materialReturn.returnNo, `${prefix}%`))
-      .orderBy(desc(materialReturn.returnNo))
+      .where(ilike(materialReturn.returnNo, `${monthPrefix}%`))
+      .orderBy(desc(sql`(substring(${materialReturn.returnNo} from 11))::int`))
       .limit(1);
 
-    let seq = 1;
+    let seq = cfg.start;
     if (rows.length > 0) {
       const lastNo = rows[0].returnNo;
-      const lastSeq = parseInt(lastNo.slice(prefix.length), 10);
+      const lastSeq = parseInt(lastNo.slice(10), 10);
       if (!isNaN(lastSeq)) {
         seq = lastSeq + 1;
       }
     }
 
-    return `${prefix}${String(seq).padStart(4, '0')}`;
+    return `${prefix}${String(seq).padStart(cfg.digits, '0')}`;
   }
 
   private toDto(row: {

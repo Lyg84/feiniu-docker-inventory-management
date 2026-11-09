@@ -24,6 +24,9 @@ export interface TicketItem {
 
 export interface TicketData {
   companyName?: string;
+  contactPerson?: string;
+  contactPhone?: string;
+  contactAddress?: string;
   orderNo: string;
   orderDate: string;
   customerName: string;
@@ -186,6 +189,13 @@ function renderCopy(
   preset: PaperPreset,
 ): string {
   const company = esc(data.companyName || '送货单');
+  const contactParts = [
+    data.contactPerson ? `联系人：${data.contactPerson}` : '',
+    data.contactPhone ? `电话：${data.contactPhone}` : '',
+    data.contactAddress ? `地址：${data.contactAddress}` : '',
+  ].filter((s: string) => s !== '');
+  const contactLine =
+    contactParts.length > 0 ? `<div class="contact">${esc(contactParts.join('　'))}</div>` : '';
   const pageTip =
     chunk.total > 1
       ? `<span class="page-tip">第 ${chunk.index + 1} / ${chunk.total} 页</span>`
@@ -195,6 +205,7 @@ function renderCopy(
   <div class="copy">
     <div class="head">
       <div class="company">${company}</div>
+      ${contactLine}
       <div class="title-row">
         <span class="title">送 货 单</span>
         <span class="copy-label">${label}</span>
@@ -281,6 +292,7 @@ function buildStyle(preset: PaperPreset): string {
   .copy + .copy { border-left: 0.4mm dashed #999; }
   .head { text-align: center; }
   .company { font-size: ${font}pt; letter-spacing: 0.5pt; height: 4mm; }
+  .contact { font-size: ${Math.max(6, font - 1.5)}pt; line-height: 3.6mm; color: #000; }
   .title-row { position: relative; height: 9mm; line-height: 9mm; }
   .title { font-size: ${preset.titlePt}pt; font-weight: bold; letter-spacing: 2pt; font-family: "SimHei", "黑体", "SimSun", sans-serif; }
   .copy-label {

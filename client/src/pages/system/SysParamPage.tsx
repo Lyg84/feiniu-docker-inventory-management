@@ -68,8 +68,23 @@ export default function SysParamPage() {
 
   const handleSubmit = async () => {
     if (!editingId) return;
+    const value = (form.paramValue ?? '').trim();
+    if (editingKey === 'order_no_digits') {
+      const n = Number(value);
+      if (!Number.isInteger(n) || n < 1 || n > 10) {
+        toast.error('单据号位数请填 1～10 之间的整数');
+        return;
+      }
+    }
+    if (editingKey === 'order_no_start') {
+      const n = Number(value);
+      if (!Number.isInteger(n) || n < 1) {
+        toast.error('起始单据号请填 1 或更大的整数');
+        return;
+      }
+    }
     try {
-      await systemApi.paramUpdate(editingId, form);
+      await systemApi.paramUpdate(editingId, { ...form, paramValue: value });
       toast.success('修改成功');
       setDialogOpen(false);
       fetchData();
@@ -156,6 +171,20 @@ export default function SysParamPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              ) : editingKey === 'order_no_digits' || editingKey === 'order_no_start' ? (
+                <div className="space-y-1">
+                  <Input
+                    value={form.paramValue || ''}
+                    onChange={(e) => setForm({ ...form, paramValue: e.target.value })}
+                    className="h-8"
+                    inputMode="numeric"
+                  />
+                  <div className="text-xs text-gray-500">
+                    {editingKey === 'order_no_digits'
+                      ? '流水号位数，例如填 5 则单号为 XS20261109' + '00001'
+                      : '每月第一张单据的流水号，之后按号往下排，例如填 100 则当月从 ...00100 开始'}
+                  </div>
+                </div>
               ) : (
                 <Input
                   value={form.paramValue || ''}

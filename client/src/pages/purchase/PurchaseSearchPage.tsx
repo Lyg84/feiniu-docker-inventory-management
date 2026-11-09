@@ -662,8 +662,8 @@ export default function PurchaseSearchPage() {
     <div className="bg-white rounded border border-gray-200">
       <div className="p-3 border-b border-gray-200">
         <div className="text-base font-semibold text-gray-800 mb-3">采购单据查找</div>
-        <div className="grid grid-cols-5 gap-3 items-end">
-          <div className="space-y-1">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1 w-48">
             <Label>供应商</Label>
             <PinyinSelect
               value={supplierId}
@@ -673,25 +673,26 @@ export default function PurchaseSearchPage() {
               className="h-8"
             />
           </div>
-          <div className="space-y-1">
-            <Label>日期范围</Label>
-            <div className="flex items-center gap-2">
-              <QuickRangeSelect value={range} onChange={handleRangeChange} className="h-8 w-24" />
-              <DateRangePicker
-                startDate={startDate}
-                endDate={endDate}
-                onStartChange={(v) => {
-                  setStartDate(v);
-                  setRange('');
-                }}
-                onEndChange={(v) => {
-                  setEndDate(v);
-                  setRange('');
-                }}
-              />
-            </div>
+          <div className="space-y-1 w-24">
+            <Label>快捷时间</Label>
+            <QuickRangeSelect value={range} onChange={handleRangeChange} className="h-8 w-24" />
           </div>
           <div className="space-y-1">
+            <Label>日期范围</Label>
+            <DateRangePicker
+              startDate={startDate}
+              endDate={endDate}
+              onStartChange={(v) => {
+                setStartDate(v);
+                setRange('');
+              }}
+              onEndChange={(v) => {
+                setEndDate(v);
+                setRange('');
+              }}
+            />
+          </div>
+          <div className="space-y-1 flex-1 min-w-[180px]">
             <Label>关键字</Label>
             <Input
               value={keyword}
@@ -701,7 +702,7 @@ export default function PurchaseSearchPage() {
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1 w-28">
             <Label>状态</Label>
             <Select value={status} onValueChange={setStatus}>
               <SelectTrigger className="h-8">
@@ -714,7 +715,7 @@ export default function PurchaseSearchPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pb-1">
             <Button size="sm" variant="default" onClick={handleSearch}>
               <Search className="w-3 h-3" />
               查询

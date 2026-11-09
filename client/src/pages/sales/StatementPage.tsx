@@ -10,6 +10,8 @@ import { Badge } from '@client/src/components/ui/badge';
 import { statementApi, customerApi } from '@client/src/api';
 import type { CustomerStatement, Customer } from '@shared/api.interface';
 import PinyinSelect from '@client/src/components/PinyinSelect';
+import QuickRangeSelect from '@client/src/components/QuickRangeSelect';
+import { quickRange } from '@/lib/quick-range';
 import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
 import { buildCustomerOptions } from '@/lib/entity-options';
 import { pinyinMatchFields } from '@/lib/pinyin-match';
@@ -28,8 +30,9 @@ interface StatementRecord {
 const StatementPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
+  const [range, setRange] = useState<string>('month');
+  const [startDate, setStartDate] = useState<string>(quickRange('month')[0]);
+  const [endDate, setEndDate] = useState<string>(quickRange('month')[1]);
   const [statement, setStatement] = useState<CustomerStatement | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [customerFilter, setCustomerFilter] = useState<string>('');
@@ -85,6 +88,15 @@ const StatementPage: React.FC = () => {
       loadStatement();
     }
   }, [loadStatement, selectedCustomer]);
+
+  /** 选快捷时间后自动回填起止日期 */
+  const handleRangeChange = (key: string): void => {
+    if (!key) return;
+    const [start, end] = quickRange(key);
+    setRange(key);
+    setStartDate(start);
+    setEndDate(end);
+  };
 
   const handlePrint = (): void => {
     window.print();
@@ -248,11 +260,14 @@ const StatementPage: React.FC = () => {
               className="w-44"
             />
 
+            <QuickRangeSelect value={range} onChange={handleRangeChange} />
+
             <Input
               value={startDate}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setStartDate(e.target.value)
-              }
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                setStartDate(e.target.value);
+                setRange('');
+              }}
               type="date"
               className="w-36 h-8 text-xs"
               placeholder="开始日期"
@@ -260,9 +275,10 @@ const StatementPage: React.FC = () => {
             <span className="text-gray-400">至</span>
             <Input
               value={endDate}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setEndDate(e.target.value)
-              }
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                setEndDate(e.target.value);
+                setRange('');
+              }}
               type="date"
               className="w-36 h-8 text-xs"
               placeholder="结束日期"

@@ -15,6 +15,18 @@ import {
 } from '@client/src/components/ui/dialog';
 import { systemApi } from '@client/src/api';
 import type { SysParam } from '@shared/api.interface';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@client/src/components/ui/select';
+import {
+  PAPER_OPTIONS,
+  PRINT_PAPER_PARAM_KEY,
+  getPaperPreset,
+} from '@/lib/print/paper-presets';
 
 const defaultForm: Partial<SysParam> = {
   paramValue: '',
@@ -26,6 +38,7 @@ export default function SysParamPage() {
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingKey, setEditingKey] = useState<string>('');
   const [form, setForm] = useState<Partial<SysParam>>(defaultForm);
 
   const fetchData = useCallback(async () => {
@@ -48,6 +61,7 @@ export default function SysParamPage() {
 
   const handleEdit = (record: SysParam) => {
     setEditingId(record.id);
+    setEditingKey(record.paramKey);
     setForm({ paramValue: record.paramValue, remark: record.remark });
     setDialogOpen(true);
   };
@@ -67,7 +81,15 @@ export default function SysParamPage() {
   const columns: TableColumnsType<SysParam> = [
     { title: '参数名称', dataIndex: 'paramName', width: 200, fixed: 'left' },
     { title: '参数键', dataIndex: 'paramKey', width: 200 },
-    { title: '参数值', dataIndex: 'paramValue', width: 200 },
+    {
+      title: '参数值',
+      dataIndex: 'paramValue',
+      width: 260,
+      render: (v: string, record: SysParam) =>
+        record.paramKey === PRINT_PAPER_PARAM_KEY
+          ? getPaperPreset(v).label
+          : v || '-',
+    },
     { title: '备注', dataIndex: 'remark', ellipsis: true },
     {
       title: '操作',
@@ -118,11 +140,29 @@ export default function SysParamPage() {
           <div className="space-y-3">
             <div className="space-y-1">
               <Label>参数值</Label>
-              <Input
-                value={form.paramValue || ''}
-                onChange={(e) => setForm({ ...form, paramValue: e.target.value })}
-                className="h-8"
-              />
+              {editingKey === PRINT_PAPER_PARAM_KEY ? (
+                <Select
+                  value={form.paramValue || 'pin2'}
+                  onValueChange={(v: string) => setForm({ ...form, paramValue: v })}
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue placeholder="选择纸型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAPER_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  value={form.paramValue || ''}
+                  onChange={(e) => setForm({ ...form, paramValue: e.target.value })}
+                  className="h-8"
+                />
+              )}
             </div>
             <div className="space-y-1">
               <Label>备注</Label>

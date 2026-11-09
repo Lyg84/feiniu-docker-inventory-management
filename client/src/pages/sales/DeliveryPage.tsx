@@ -7,10 +7,12 @@ import { Button } from '@client/src/components/ui/button';
 import { Input } from '@client/src/components/ui/input';
 import { Badge } from '@client/src/components/ui/badge';
 import PinyinAutoComplete, { type ComboOption } from '@client/src/components/PinyinAutoComplete';
+import { buildDeliveryTicketHtml, ticketPageSize } from '@/lib/print/delivery-ticket';
 import {
-  buildDeliveryTicketHtml,
-  TICKET_PAGE_SIZE,
-} from '@/lib/print/delivery-ticket';
+  DEFAULT_PAPER_KEY,
+  PRINT_PAPER_PARAM_KEY,
+  getPaperPreset,
+} from '@/lib/print/paper-presets';
 import {
   ensurePrintClient,
   launchPrintClient,
@@ -34,7 +36,7 @@ import {
 } from '@client/src/components/ui/select';
 import { Textarea } from '@client/src/components/ui/textarea';
 
-import { salesDeliveryApi, customerApi, productApi } from '@client/src/api';
+import { salesDeliveryApi, customerApi, productApi, systemApi } from '@client/src/api';
 import { buildProductOptions } from '@/lib/product-options';
 import { buildCustomerOptions } from '@/lib/entity-options';
 import PinyinSelect from '@client/src/components/PinyinSelect';
@@ -118,6 +120,17 @@ const DeliveryPage: React.FC = () => {
   );
   const [printing, setPrinting] = useState<boolean>(false);
 
+  // 打印纸型 / 公司名：来自系统参数设置
+  const [paperKey, setPaperKey] = useState<string>(DEFAULT_PAPER_KEY);
+  const [companyName, setCompanyName] = useState<string>('');
+
+  // 列表勾选（批量打印 / 批量审核）
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [selectedRows, setSelectedRows] = useState<SalesDelivery[]>([]);
+  const [batchBusy, setBatchBusy] = useState<boolean>(false);
+  const [batchDone, setBatchDone] = useState<number>(0);
+  const [batchTotal, setBatchTotal] = useState<number>(0);
+
   /** 商品候选：按 名称+规格+单位 区分，同名不同规格各占一条；显示文本重复时再补单位区分 */
   const productOptions = useMemo<ComboOption[]>(
     () => buildProductOptions(products),
@@ -193,6 +206,23 @@ const DeliveryPage: React.FC = () => {
       .catch(() => toast.error('加载基础资料失败'))
       .finally(() => setOptionsLoading(false));
   }, []);
+
+  // 读取系统参数：打印纸型、公司名称
+  useEffect(() => {
+    systemApi
+      .paramList()
+      .then((params) => {
+        const paper = params.find((p) => p.paramKey === PRINT_PAPER_PARAM_KEY)?.paramValue;
+        if (paper) setPaperKey(paper);
+        const company = params.find((p) => p.paramKey === 'company_name')?.paramValue;
+        if (company) setCompanyName(company);
+      })
+      .catch(() => {
+        /* 参数接口失败就按默认纸型打印，不挡开单 */
+      });
+  }, []);
+
+  const paperPreset = useMemo(() => getPaperPreset(paperKey), [paperKey]);
 
   const handleSearch = (): void => {
     setPage(1);
@@ -285,6 +315,99 @@ const DeliveryPage: React.FC = () => {
         loadList();
       })
       .catch(() => toast.error('删除失败'));
+  };
+
+  const clearSelection = (): void => {
+    setSelectedRowKeys([]);
+    setSelectedRows([]);
+  };
+
+  /** 批量审核：只处理勾选里的草稿，逐张下发并统计结果 */
+  const handleBatchAudit = async (): Promise<void> => {
+    const drafts = selectedRows.filter((r: SalesDelivery) => !isAudited(r));
+    if (drafts.length === 0) {
+      toast.error('勾选的单据都是已审核状态，无需批量审核');
+      return;
+    }
+    setBatchBusy(true);
+    setBatchDone(0);
+    setBatchTotal(drafts.length);
+    let ok = 0;
+    const failed: string[] = [];
+    for (const record of drafts) {
+      try {
+        await salesDeliveryApi.audit(record.id);
+        ok += 1;
+      } catch (err: unknown) {
+        failed.push(`${record.orderNo}（${apiErrText(err, '审核失败')}）`);
+      }
+      setBatchDone(ok + failed.length);
+    }
+    setBatchBusy(false);
+    clearSelection();
+    loadList();
+    if (failed.length === 0) {
+      toast.success(`已审核 ${ok} 张送货单`);
+    } else {
+      toast.error(
+        `成功 ${ok} 张，失败 ${failed.length} 张：${failed.slice(0, 3).join('；')}${failed.length > 3 ? ' …' : ''}`,
+      );
+    }
+  };
+
+  /** 批量打印：逐张取明细串行下发，避免一次怼给打印端 */
+  const handleBatchPrint = async (): Promise<void> => {
+    if (!printState.connected) {
+      toast.error('未连接到打印客户端，请先启动 electron-hiprint 打印端');
+      return;
+    }
+    if (selectedRows.length === 0) return;
+    setBatchBusy(true);
+    setBatchDone(0);
+    setBatchTotal(selectedRows.length);
+    let ok = 0;
+    const failed: string[] = [];
+    for (const record of selectedRows) {
+      try {
+        const detail = await salesDeliveryApi.get(record.id);
+        const sent = await sendTicket({
+          id: detail.id,
+          orderNo: detail.orderNo,
+          orderDate: detail.orderDate,
+          customerName:
+            detail.customerName ||
+            customers.find((c: Customer) => c.id === detail.customerId)?.name ||
+            '',
+          customerPhone: customers.find((c: Customer) => c.id === detail.customerId)?.phone,
+          items: (detail.items || []).map((it: DeliveryItem) => ({
+            productName: it.productName,
+            spec: it.spec,
+            unit: it.unit,
+            quantity: it.quantity,
+            price: it.price,
+            amount: it.amount,
+          })),
+          totalAmount: detail.totalAmount,
+          remark: detail.remark,
+          quiet: true,
+        });
+        if (sent) ok += 1;
+        else failed.push(`${record.orderNo}（打印端未回执）`);
+      } catch {
+        failed.push(`${record.orderNo}（取明细失败）`);
+      }
+      setBatchDone(ok + failed.length);
+    }
+    setBatchBusy(false);
+    loadList();
+    if (failed.length === 0) {
+      toast.success(`已发送 ${ok} 张送货单到打印端`);
+      clearSelection();
+    } else {
+      toast.error(
+        `成功 ${ok} 张，失败 ${failed.length} 张：${failed.slice(0, 3).join('；')}${failed.length > 3 ? ' …' : ''}`,
+      );
+    }
   };
 
   const addLine = (): void => {
@@ -519,43 +642,50 @@ const DeliveryPage: React.FC = () => {
     }>;
     totalAmount: number;
     remark?: string;
-  }): Promise<void> => {
+    /** 批量打印时不弹 per-item 提示 */
+    quiet?: boolean;
+  }): Promise<boolean> => {
     if (!printState.connected) {
       toast.error('未连接到打印客户端，请先启动 electron-hiprint 打印端');
-      return;
+      return false;
     }
-    const html = buildDeliveryTicketHtml({
-      orderNo: payload.orderNo,
-      orderDate: payload.orderDate,
-      customerName: payload.customerName,
-      customerPhone: payload.customerPhone,
-      items: payload.items,
-      totalAmount: payload.totalAmount,
-      remark: payload.remark,
-    });
+    const html = buildDeliveryTicketHtml(
+      {
+        companyName: companyName || undefined,
+        orderNo: payload.orderNo,
+        orderDate: payload.orderDate,
+        customerName: payload.customerName,
+        customerPhone: payload.customerPhone,
+        items: payload.items,
+        totalAmount: payload.totalAmount,
+        remark: payload.remark,
+      },
+      paperKey,
+    );
 
-    setPrinting(true);
+    if (!payload.quiet) setPrinting(true);
     try {
       const res = await printHtml(html, {
         printer: printerName || undefined,
-        pageSize: TICKET_PAGE_SIZE,
+        pageSize: ticketPageSize(paperKey),
       });
       if (!res.ok) {
         toast.error(res.message || '打印失败');
-        return;
+        return false;
       }
-      toast.success('打印任务已发送');
+      if (!payload.quiet) toast.success('打印任务已发送');
       // 已保存的单据才回写打印状态
       if (payload.id) {
         try {
           await salesDeliveryApi.markPrinted(payload.id);
-          loadList();
+          if (!payload.quiet) loadList();
         } catch {
           toast.error('打印成功，但打印状态回写失败');
         }
       }
+      return true;
     } finally {
-      setPrinting(false);
+      if (!payload.quiet) setPrinting(false);
     }
   };
 
@@ -799,6 +929,45 @@ const DeliveryPage: React.FC = () => {
         </Button>
       </div>
 
+      <div className="px-3 py-2 border-b flex items-center gap-2 flex-wrap bg-slate-50">
+        <span className="text-xs text-gray-600">
+          已勾选 <span className="font-semibold text-slate-900">{selectedRowKeys.length}</span> 张
+        </span>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={batchBusy || selectedRowKeys.length === 0}
+          onClick={() => void handleBatchPrint()}
+        >
+          {batchBusy ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />}
+          批量打印
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={batchBusy || selectedRowKeys.length === 0}
+          onClick={() => void handleBatchAudit()}
+        >
+          <CheckCircle size={14} /> 批量审核
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={batchBusy || selectedRowKeys.length === 0}
+          onClick={clearSelection}
+        >
+          清空选择
+        </Button>
+        {batchBusy && batchTotal > 0 && (
+          <span className="text-xs text-blue-600">
+            处理中 {batchDone} / {batchTotal}
+          </span>
+        )}
+        <span className="ml-auto text-xs text-gray-500">
+          打印纸型：{paperPreset.label}
+        </span>
+      </div>
+
       <Table
         columns={columns}
         dataSource={list}
@@ -806,6 +975,15 @@ const DeliveryPage: React.FC = () => {
         loading={loading}
         size="small"
         scroll={{ x: 1200, y: 500 }}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys: React.Key[], rows: SalesDelivery[]) => {
+            setSelectedRowKeys(keys);
+            setSelectedRows(rows);
+          },
+          columnWidth: 40,
+          preserveSelectedRowKeys: true,
+        }}
         pagination={{
           current: page,
           pageSize,
@@ -1092,7 +1270,7 @@ const DeliveryPage: React.FC = () => {
               )}
               打印送货单
             </Button>
-            <span className="text-gray-400">纸张 241×140mm 二联</span>
+            <span className="text-gray-400">纸张 {paperPreset.label}</span>
           </div>
 
           <DialogFooter>

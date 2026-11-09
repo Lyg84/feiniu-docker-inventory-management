@@ -1,12 +1,17 @@
 /**
- * 送货单打印模板（针式机 241mm × 140mm 二联二等分）
+ * 送货单打印模板
  *
- * 约定：
- * 1. 纸张 241mm 宽、140mm 高一页，左右各一联（存根联 / 客户联），中缝为撕纸位；
- * 2. 所有尺寸一律 mm / pt，禁止使用 px —— 针式机 360dpi 下 px 会缩放走形；
- * 3. 不设缩放，页面尺寸由 @page + 打印机纸型共同决定；
- * 4. 明细分页时每页重新打印表头，并在右上角标注「第 N 页 / 共 M 页」。
+ * 纸型由系统参数 print_paper_type 决定（见 paper-presets.ts）：
+ *   A4 / B5 单联整页；针式一分纸 241×279 单联；针式二分纸 241×140 二联；针式三分纸 241×93 三联。
+ * 所有尺寸一律 mm / pt，不使用 px —— 针式机 360dpi 下 px 会缩放走形。
+ * 明细分页时每页重新打印表头，并标注「第 N 页 / 共 M 页」。
  */
+
+import {
+  getPaperPreset,
+  paperPageSize,
+  type PaperPreset,
+} from '@/lib/print/paper-presets';
 
 export interface TicketItem {
   productName: string;
@@ -29,9 +34,6 @@ export interface TicketData {
   remark?: string;
   operator?: string;
 }
-
-/** 每页明细行数（14 行时版面约占 132mm，留出签字空间） */
-const ROWS_PER_PAGE = 14;
 
 const escapes: Record<string, string> = {
   '&': '&amp;',
@@ -116,14 +118,14 @@ interface PageChunk {
   pageQty: number;
 }
 
-function chunkItems(items: TicketItem[]): PageChunk[] {
+function chunkItems(items: TicketItem[], rowsPerPage: number): PageChunk[] {
   const chunks: TicketItem[][] = [];
   const safeItems = items.length > 0 ? items : [];
   if (safeItems.length === 0) {
     chunks.push([]);
   } else {
-    for (let i = 0; i < safeItems.length; i += ROWS_PER_PAGE) {
-      chunks.push(safeItems.slice(i, i + ROWS_PER_PAGE));
+    for (let i = 0; i < safeItems.length; i += rowsPerPage) {
+      chunks.push(safeItems.slice(i, i + rowsPerPage));
     }
   }
   const total = chunks.length;
@@ -136,9 +138,13 @@ function chunkItems(items: TicketItem[]): PageChunk[] {
   }));
 }
 
-function renderRows(items: TicketItem[], chunk: PageChunk): string {
+function renderRows(
+  items: TicketItem[],
+  chunk: PageChunk,
+  rowCount: number,
+): string {
   const rows: string[] = [];
-  for (let i = 0; i < ROWS_PER_PAGE; i += 1) {
+  for (let i = 0; i < rowCount; i += 1) {
     const it = items[i];
     if (!it) {
       rows.push(
@@ -160,7 +166,6 @@ function renderRows(items: TicketItem[], chunk: PageChunk): string {
       </tr>`,
     );
   }
-  // 本页小计行占到最后一行的位置，避免空行过多
   rows.push(
     `<tr class="subtotal">
       <td class="c"></td>
@@ -174,7 +179,12 @@ function renderRows(items: TicketItem[], chunk: PageChunk): string {
   return rows.join('');
 }
 
-function renderCopy(data: TicketData, chunk: PageChunk, label: string): string {
+function renderCopy(
+  data: TicketData,
+  chunk: PageChunk,
+  label: string,
+  preset: PaperPreset,
+): string {
   const company = esc(data.companyName || '送货单');
   const pageTip =
     chunk.total > 1
@@ -204,16 +214,20 @@ function renderCopy(data: TicketData, chunk: PageChunk, label: string): string {
     <table class="items">
       <thead>
         <tr>
-          <th style="width:7mm">序号</th>
+          <th style="width:8%">序号</th>
           <th>品名</th>
-          <th style="width:17mm">规格</th>
-          <th style="width:9mm">单位</th>
-          <th style="width:15mm">数量</th>
-          <th style="width:18mm">单价</th>
-          <th style="width:19mm">金额</th>
+          <th style="width:15%">规格</th>
+          <th style="width:8%">单位</th>
+          <th style="width:12%">数量</th>
+          <th style="width:14%">单价</th>
+          <th style="width:14%">金额</th>
         </tr>
       </thead>
-      <tbody>${renderRows(chunk.items, chunk)}</tbody>
+      <tbody>${renderRows(
+        chunk.items,
+        chunk,
+        preset.copies > 1 ? preset.rowsPerPage : Math.max(1, chunk.items.length),
+      )}</tbody>
     </table>
 
     <div class="footer">
@@ -235,18 +249,88 @@ function renderCopy(data: TicketData, chunk: PageChunk, label: string): string {
   </div>`;
 }
 
+function buildStyle(preset: PaperPreset): string {
+  const copyWidth = Number((preset.widthMm / preset.copies).toFixed(2));
+  const font = preset.fontPt;
+  return `
+  @page { size: ${preset.widthMm}mm ${preset.heightMm}mm; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+  body {
+    font-family: "SimSun", "宋体", "Microsoft YaHei", monospace;
+    font-size: ${font}pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .page {
+    width: ${preset.widthMm}mm;
+    height: ${preset.heightMm}mm;
+    display: flex;
+    page-break-after: always;
+    break-after: page;
+  }
+  .page:last-child { page-break-after: auto; break-after: auto; }
+  .copy {
+    width: ${copyWidth}mm;
+    height: ${preset.heightMm}mm;
+    padding: 3mm 3mm 2mm 3mm;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .copy + .copy { border-left: 0.4mm dashed #999; }
+  .head { text-align: center; }
+  .company { font-size: ${font}pt; letter-spacing: 0.5pt; height: 4mm; }
+  .title-row { position: relative; height: 9mm; line-height: 9mm; }
+  .title { font-size: ${preset.titlePt}pt; font-weight: bold; letter-spacing: 2pt; font-family: "SimHei", "黑体", "SimSun", sans-serif; }
+  .copy-label {
+    position: absolute; right: 0; top: 1.5mm;
+    font-size: ${Math.max(6, font - 2)}pt; border: 0.3mm solid #000; padding: 0 1mm; line-height: 4mm;
+  }
+  .page-tip { position: absolute; left: 0; top: 2mm; font-size: ${Math.max(6, font - 2)}pt; }
+  .meta { display: flex; font-size: ${Math.max(7, font - 0.5)}pt; line-height: 5mm; }
+  .meta-item { white-space: nowrap; }
+  .meta-item.grow { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+
+  .items { width: 100%; border-collapse: collapse; margin-top: 1mm; table-layout: fixed; }
+  .items th, .items td {
+    border: 0.25mm solid #000;
+    font-size: ${Math.max(6, font - 1)}pt;
+    line-height: 1;
+    padding: 0.8mm 0.6mm;
+    height: ${preset.rowHeightMm}mm;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .items th { font-weight: bold; text-align: center; }
+  .items td.name { text-align: left; }
+  .items td.c { text-align: center; }
+  .items td.r { text-align: right; }
+  .items tr.subtotal td { font-weight: bold; height: ${Math.max(4.4, preset.rowHeightMm - 0.6)}mm; }
+
+  .footer { margin-top: auto; padding-top: 1.5mm; font-size: ${Math.max(6, font - 1)}pt; }
+  .sum-line { display: flex; line-height: 5mm; align-items: baseline; }
+  .sum-line .grow { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .sum { font-weight: bold; font-size: ${font}pt; }
+  .sign-line { display: flex; align-items: baseline; line-height: 6mm; margin-top: 1mm; }
+  .sign-gap { flex: 1; border-bottom: 0.25mm solid #000; margin-right: 3mm; min-width: 12mm; }
+`;
+}
+
 /**
  * 生成完整可打印 HTML。electron-hiprint 直接吃这段字符串。
+ * paperKey 取自系统参数 print_paper_type，缺省按针式二分纸。
  */
-export function buildDeliveryTicketHtml(data: TicketData): string {
-  const chunks = chunkItems(data.items || []);
+export function buildDeliveryTicketHtml(data: TicketData, paperKey?: string | null): string {
+  const preset = getPaperPreset(paperKey);
+  const chunks = chunkItems(data.items || [], preset.rowsPerPage);
 
   const pages = chunks
     .map(
       (chunk: PageChunk) => `
     <div class="page">
-      ${renderCopy(data, chunk, '存根联')}
-      ${renderCopy(data, chunk, '客户联')}
+      ${preset.copyLabels.map((label: string) => renderCopy(data, chunk, label, preset)).join('')}
     </div>`,
     )
     .join('');
@@ -256,74 +340,13 @@ export function buildDeliveryTicketHtml(data: TicketData): string {
 <head>
 <meta charset="utf-8" />
 <title>${esc(data.orderNo)}</title>
-<style>
-  @page { size: 241mm 140mm; margin: 0; }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: #fff; color: #000; }
-  body {
-    font-family: "SimSun", "宋体", "Microsoft YaHei", monospace;
-    font-size: 9pt;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  .page {
-    width: 241mm;
-    height: 140mm;
-    display: flex;
-    page-break-after: always;
-    break-after: page;
-  }
-  .page:last-child { page-break-after: auto; break-after: auto; }
-  .copy {
-    width: 120.5mm;
-    height: 140mm;
-    padding: 3mm 3mm 2mm 3mm;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-  .copy:first-child { border-right: 0.4mm dashed #999; }
-  .head { text-align: center; }
-  .company { font-size: 9pt; letter-spacing: 0.5pt; height: 4mm; }
-  .title-row { position: relative; height: 9mm; line-height: 9mm; }
-  .title { font-size: 16pt; font-weight: bold; letter-spacing: 2pt; font-family: "SimHei", "黑体", "SimSun", sans-serif; }
-  .copy-label {
-    position: absolute; right: 0; top: 1.5mm;
-    font-size: 7pt; border: 0.3mm solid #000; padding: 0 1mm; line-height: 4mm;
-  }
-  .page-tip { position: absolute; left: 0; top: 2mm; font-size: 7pt; }
-  .meta { display: flex; font-size: 8.5pt; line-height: 5mm; }
-  .meta-item { white-space: nowrap; }
-  .meta-item.grow { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-
-  .items { width: 100%; border-collapse: collapse; margin-top: 1mm; table-layout: fixed; }
-  .items th, .items td {
-    border: 0.25mm solid #000;
-    font-size: 8pt;
-    line-height: 1;
-    padding: 0.8mm 0.6mm;
-    height: 5.6mm;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-  .items th { font-weight: bold; text-align: center; }
-  .items td.name { text-align: left; }
-  .items td.c { text-align: center; }
-  .items td.r { text-align: right; }
-  .items tr.subtotal td { font-weight: bold; height: 5mm; }
-
-  .footer { margin-top: auto; padding-top: 1.5mm; font-size: 8pt; }
-  .sum-line { display: flex; line-height: 5mm; align-items: baseline; }
-  .sum-line .grow { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .sum { font-weight: bold; font-size: 9pt; }
-  .sign-line { display: flex; align-items: baseline; line-height: 6mm; margin-top: 1mm; }
-  .sign-gap { flex: 1; border-bottom: 0.25mm solid #000; margin-right: 3mm; min-width: 12mm; }
-</style>
+<style>${buildStyle(preset)}</style>
 </head>
 <body>${pages}</body>
 </html>`;
 }
 
-/** electron-hiprint 的自定义纸张单位是 1/1000 mm */
-export const TICKET_PAGE_SIZE = { width: 241 * 1000, height: 140 * 1000 };
+/** 按纸型取打印页尺寸（1/1000 mm），供 printHtml 的 pageSize 用 */
+export function ticketPageSize(paperKey?: string | null): { width: number; height: number } {
+  return paperPageSize(paperKey);
+}

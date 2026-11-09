@@ -11,6 +11,7 @@ import type { SalesDelivery, DeliveryItem, PageResult } from '@shared/api.interf
 import {
   formatOrderNo,
   getOrderNoSettings,
+  todayDateStr,
 } from '@server/modules/system/order-no-config';
 
 interface ListQuery {
@@ -265,7 +266,7 @@ export class SalesDeliveryService implements OnModuleInit {
         .insert(salesDelivery)
         .values({
           orderNo,
-          orderDate: data.orderDate || new Date().toISOString().slice(0, 10),
+          orderDate: data.orderDate || todayDateStr(),
           customerId: data.customerId!,
           totalAmount: String(totalAmount),
           paidAmount: '0',

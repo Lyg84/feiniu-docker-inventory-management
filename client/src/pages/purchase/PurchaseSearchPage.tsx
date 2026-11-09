@@ -8,6 +8,8 @@ import { Input } from '@client/src/components/ui/input';
 import { Label } from '@client/src/components/ui/label';
 import { Badge } from '@client/src/components/ui/badge';
 import { Calendar } from '@client/src/components/ui/calendar';
+import QuickRangeSelect from '@client/src/components/QuickRangeSelect';
+import { quickRange } from '@/lib/quick-range';
 import {
   Popover,
   PopoverContent,
@@ -325,8 +327,9 @@ export default function PurchaseSearchPage() {
   const [activeTab, setActiveTab] = useState<TabType>('in');
 
   const [supplierId, setSupplierId] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [range, setRange] = useState('month');
+  const [startDate, setStartDate] = useState(quickRange('month')[0]);
+  const [endDate, setEndDate] = useState(quickRange('month')[1]);
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState('');
 
@@ -450,10 +453,20 @@ export default function PurchaseSearchPage() {
 
   const handleReset = () => {
     setSupplierId('');
-    setStartDate('');
-    setEndDate('');
+    setRange('month');
+    setStartDate(quickRange('month')[0]);
+    setEndDate(quickRange('month')[1]);
     setKeyword('');
     setStatus('');
+  };
+
+  /** 选快捷时间后自动回填起止日期 */
+  const handleRangeChange = (key: string) => {
+    if (!key) return;
+    const [start, end] = quickRange(key);
+    setRange(key);
+    setStartDate(start);
+    setEndDate(end);
   };
 
   const handleRefresh = () => {
@@ -662,12 +675,21 @@ export default function PurchaseSearchPage() {
           </div>
           <div className="space-y-1">
             <Label>日期范围</Label>
-            <DateRangePicker
-              startDate={startDate}
-              endDate={endDate}
-              onStartChange={setStartDate}
-              onEndChange={setEndDate}
-            />
+            <div className="flex items-center gap-2">
+              <QuickRangeSelect value={range} onChange={handleRangeChange} className="h-8 w-24" />
+              <DateRangePicker
+                startDate={startDate}
+                endDate={endDate}
+                onStartChange={(v) => {
+                  setStartDate(v);
+                  setRange('');
+                }}
+                onEndChange={(v) => {
+                  setEndDate(v);
+                  setRange('');
+                }}
+              />
+            </div>
           </div>
           <div className="space-y-1">
             <Label>关键字</Label>

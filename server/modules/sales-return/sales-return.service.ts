@@ -12,6 +12,7 @@ import type { SalesReturn, DeliveryItem, PageResult } from '@shared/api.interfac
 import {
   formatOrderNo,
   getOrderNoSettings,
+  todayDateStr,
 } from '@server/modules/system/order-no-config';
 
 interface ListQuery {
@@ -180,7 +181,7 @@ export class SalesReturnService {
         .insert(salesReturn)
         .values({
           returnNo,
-          returnDate: data.returnDate || new Date().toISOString().slice(0, 10),
+          returnDate: data.returnDate || todayDateStr(),
           customerId: data.customerId!,
           deliveryId: data.deliveryId || null,
           totalAmount: String(totalAmount),

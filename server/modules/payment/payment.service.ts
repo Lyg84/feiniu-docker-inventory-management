@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '@lark-apaas/fullstack-nestjs-core';
-import { and, asc, count, desc, eq, ilike, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, ilike, lte, sql } from 'drizzle-orm';
 import type { Payment } from '@shared/api.interface';
 import { getOrderNoSettings } from '@server/modules/system/order-no-config';
 import {
@@ -29,14 +29,18 @@ export class PaymentService {
     keyword?: string;
     supplierId?: string;
     auditStatus?: string;
+    startDate?: string;
+    endDate?: string;
   }): Promise<{ items: Payment[]; total: number; page: number; pageSize: number }> {
-    const { page, pageSize, keyword, supplierId, auditStatus } = params;
+    const { page, pageSize, keyword, supplierId, auditStatus, startDate, endDate } = params;
     const offset = (page - 1) * pageSize;
 
     const conditions = [];
     if (keyword) conditions.push(ilike(payment.paymentNo, `%${keyword}%`));
     if (supplierId) conditions.push(eq(payment.supplierId, supplierId));
     if (auditStatus) conditions.push(eq(payment.auditStatus, auditStatus));
+    if (startDate) conditions.push(gte(payment.paymentDate, startDate));
+    if (endDate) conditions.push(lte(payment.paymentDate, endDate));
 
     const baseQuery = this.db
       .select({

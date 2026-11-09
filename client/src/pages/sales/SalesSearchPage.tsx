@@ -42,6 +42,8 @@ import type {
   ReceiptItem,
 } from '@shared/api.interface';
 import PinyinSelect from '@client/src/components/PinyinSelect';
+import QuickRangeSelect from '@client/src/components/QuickRangeSelect';
+import { quickRange } from '@/lib/quick-range';
 import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
 import { buildCustomerOptions } from '@/lib/entity-options';
 import { exportToExcel, fetchAllPages, todayStamp } from '@/lib/excel-export';
@@ -59,10 +61,11 @@ const SalesSearchPage: React.FC = () => {
 
   // search params
   const [searchCustomer, setSearchCustomer] = useState<string>('');
-  const [searchStatus, setSearchStatus] = useState<string>('');
+  const [searchStatus, setSearchStatus] = useState<string>('all');
   const [searchKeyword, setSearchKeyword] = useState<string>('');
-  const [searchStart, setSearchStart] = useState<string>('');
-  const [searchEnd, setSearchEnd] = useState<string>('');
+  const [searchRange, setSearchRange] = useState<string>('month');
+  const [searchStart, setSearchStart] = useState<string>(quickRange('month')[0]);
+  const [searchEnd, setSearchEnd] = useState<string>(quickRange('month')[1]);
 
   // delivery list
   const [deliveryPage, setDeliveryPage] = useState<number>(1);
@@ -110,7 +113,7 @@ const SalesSearchPage: React.FC = () => {
       pageSize: String(pageSize),
     };
     if (searchCustomer) params.customerId = searchCustomer;
-    if (searchStatus) params.auditStatus = searchStatus;
+    if (searchStatus && searchStatus !== 'all') params.auditStatus = searchStatus;
     if (searchKeyword) params.keyword = searchKeyword;
     if (searchStart) params.startDate = searchStart;
     if (searchEnd) params.endDate = searchEnd;
@@ -131,7 +134,7 @@ const SalesSearchPage: React.FC = () => {
       pageSize: String(pageSize),
     };
     if (searchCustomer) params.customerId = searchCustomer;
-    if (searchStatus) params.auditStatus = searchStatus;
+    if (searchStatus && searchStatus !== 'all') params.auditStatus = searchStatus;
     if (searchKeyword) params.keyword = searchKeyword;
     if (searchStart) params.startDate = searchStart;
     if (searchEnd) params.endDate = searchEnd;
@@ -152,7 +155,7 @@ const SalesSearchPage: React.FC = () => {
       pageSize: String(pageSize),
     };
     if (searchCustomer) params.customerId = searchCustomer;
-    if (searchStatus) params.auditStatus = searchStatus;
+    if (searchStatus && searchStatus !== 'all') params.auditStatus = searchStatus;
     if (searchKeyword) params.keyword = searchKeyword;
     if (searchStart) params.startDate = searchStart;
     if (searchEnd) params.endDate = searchEnd;
@@ -193,11 +196,21 @@ const SalesSearchPage: React.FC = () => {
 
   const handleReset = (): void => {
     setSearchCustomer('');
-    setSearchStatus('');
+    setSearchStatus('all');
     setSearchKeyword('');
-    setSearchStart('');
-    setSearchEnd('');
+    setSearchRange('month');
+    setSearchStart(quickRange('month')[0]);
+    setSearchEnd(quickRange('month')[1]);
     handleSearch();
+  };
+
+  /** 选快捷时间后自动回填起止日期 */
+  const handleRangeChange = (key: string): void => {
+    if (!key) return;
+    const [start, end] = quickRange(key);
+    setSearchRange(key);
+    setSearchStart(start);
+    setSearchEnd(end);
   };
 
   /** 导出当前查询条件下的全部结果（不只是当前页） */
@@ -206,7 +219,7 @@ const SalesSearchPage: React.FC = () => {
     setExporting(true);
     const baseParams: Record<string, unknown> = {};
     if (searchCustomer) baseParams.customerId = searchCustomer;
-    if (searchStatus) baseParams.auditStatus = searchStatus;
+    if (searchStatus && searchStatus !== 'all') baseParams.auditStatus = searchStatus;
     if (searchKeyword) baseParams.keyword = searchKeyword;
     if (searchStart) baseParams.startDate = searchStart;
     if (searchEnd) baseParams.endDate = searchEnd;
@@ -827,16 +840,20 @@ const SalesSearchPage: React.FC = () => {
             <SelectValue placeholder="全部状态" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="all">全部</SelectItem>
             <SelectItem value="draft">草稿</SelectItem>
             <SelectItem value="audited">已审核</SelectItem>
           </SelectContent>
         </Select>
 
+        <QuickRangeSelect value={searchRange} onChange={handleRangeChange} />
+
         <Input
           value={searchStart}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            setSearchStart(e.target.value)
-          }
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+            setSearchStart(e.target.value);
+            setSearchRange('');
+          }}
           type="date"
           className="w-40 h-8 text-xs"
           placeholder="开始日期"
@@ -844,9 +861,10 @@ const SalesSearchPage: React.FC = () => {
         <span className="text-gray-400">至</span>
         <Input
           value={searchEnd}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            setSearchEnd(e.target.value)
-          }
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+            setSearchEnd(e.target.value);
+            setSearchRange('');
+          }}
           type="date"
           className="w-40 h-8 text-xs"
           placeholder="结束日期"

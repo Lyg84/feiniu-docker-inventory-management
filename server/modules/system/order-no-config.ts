@@ -42,6 +42,15 @@ export function formatOrderNo(prefix: string, seq: number, digits: number): stri
   return `${prefix}${String(seq).padStart(digits, '0')}`;
 }
 
+/** 本地时区的今天（yyyy-MM-dd），避免深夜下单落到 UTC 的前一天 */
+export function todayDateStr(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 /** 从已有单号里取出流水号，取不到返回 null */
 export function parseOrderSeq(orderNo: string | null | undefined, prefix: string): number | null {
   if (!orderNo || !orderNo.startsWith(prefix)) return null;

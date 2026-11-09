@@ -24,6 +24,8 @@ export class PaymentController {
     @Query('keyword') keyword?: string,
     @Query('supplierId') supplierId?: string,
     @Query('auditStatus') auditStatus?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
   ): Promise<PageResult<Payment>> {
     return this.paymentService.list({
       page: page ? parseInt(page, 10) : 1,
@@ -31,6 +33,8 @@ export class PaymentController {
       keyword,
       supplierId,
       auditStatus,
+      startDate,
+      endDate,
     });
   }
 

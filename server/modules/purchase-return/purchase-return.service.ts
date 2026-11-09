@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '@lark-apaas/fullstack-nestjs-core';
-import { and, asc, count, desc, eq, ilike, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, ilike, lte, sql } from 'drizzle-orm';
 import type { PurchaseReturn } from '@shared/api.interface';
 import { getOrderNoSettings } from '@server/modules/system/order-no-config';
 import {
@@ -30,14 +30,18 @@ export class PurchaseReturnService {
     keyword?: string;
     supplierId?: string;
     auditStatus?: string;
+    startDate?: string;
+    endDate?: string;
   }): Promise<{ items: PurchaseReturn[]; total: number; page: number; pageSize: number }> {
-    const { page, pageSize, keyword, supplierId, auditStatus } = params;
+    const { page, pageSize, keyword, supplierId, auditStatus, startDate, endDate } = params;
     const offset = (page - 1) * pageSize;
 
     const conditions = [];
     if (keyword) conditions.push(ilike(purchaseReturn.returnNo, `%${keyword}%`));
     if (supplierId) conditions.push(eq(purchaseReturn.supplierId, supplierId));
     if (auditStatus) conditions.push(eq(purchaseReturn.auditStatus, auditStatus));
+    if (startDate) conditions.push(gte(purchaseReturn.returnDate, startDate));
+    if (endDate) conditions.push(lte(purchaseReturn.returnDate, endDate));
 
     const baseQuery = this.db
       .select({

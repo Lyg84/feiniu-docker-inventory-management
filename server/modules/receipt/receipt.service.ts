@@ -11,6 +11,7 @@ import type { Receipt, ReceiptItem, PageResult } from '@shared/api.interface';
 import {
   formatOrderNo,
   getOrderNoSettings,
+  todayDateStr,
 } from '@server/modules/system/order-no-config';
 
 interface ListQuery {
@@ -180,7 +181,7 @@ export class ReceiptService {
         .insert(receipt)
         .values({
           receiptNo,
-          receiptDate: data.receiptDate || new Date().toISOString().slice(0, 10),
+          receiptDate: data.receiptDate || todayDateStr(),
           customerId: data.customerId!,
           totalAmount: String(totalAmount),
           writeOffAmount: String(writeOffAmount),

@@ -79,6 +79,7 @@ const menuGroups: MenuItem[] = [
       { key: 'sys-user', label: '系统用户设置', path: '/system/user' },
       { key: 'sys-log', label: '操作日志管理', path: '/system/log' },
       { key: 'sys-param', label: '系统参数设置', path: '/system/param' },
+      { key: 'sys-backup', label: '备份还原', path: '/system/backup' },
       { key: 'sys-password', label: '修改密码', path: '/system/password' },
     ],
   },

@@ -4,7 +4,8 @@ import { buildQuery } from '@/lib/query';
 import type { PageResult, Customer, Product, Supplier, Employee, Warehouse, FinanceItem,
   SalesDelivery, SalesReturn, Receipt, PurchaseIn, PurchaseReturn, Payment,
   StockIn, StockOut, MaterialRequisition, MaterialReturn,
-  FinanceIncome, FinanceExpense, CustomerStatement, SysUser, SysLog, SysParam, PriceHistory } from '@shared/api.interface';
+  FinanceIncome, FinanceExpense, CustomerStatement, SysUser, SysLog, SysParam, PriceHistory,
+  BackupFile, BackupStatus, ClearDataResult } from '@shared/api.interface';
 
 async function request<T>(url: string, method: string = 'GET', data?: unknown): Promise<T> {
   try {
@@ -274,4 +275,23 @@ export const systemApi = {
     request<PageResult<SysLog>>(`/api/sys-logs?page=${params.page || 1}&pageSize=${params.pageSize || 20}&keyword=${params.keyword || ''}`),
   paramList: () => request<SysParam[]>('/api/sys-params'),
   paramUpdate: (id: string, data: Partial<SysParam>) => request<SysParam>(`/api/sys-params/${id}`, 'PUT', data),
+  backupStatus: () => request<BackupStatus>('/api/system/backups/status'),
+  backupList: () => request<BackupFile[]>('/api/system/backups'),
+  backupCreate: (tag?: string) => request<BackupFile>('/api/system/backups', 'POST', { tag }),
+  backupRemove: (name: string) =>
+    request<void>(`/api/system/backups/${encodeURIComponent(name)}`, 'DELETE'),
+  backupRestore: (name: string) =>
+    request<{ preSnapshot: string; tables: number; message: string }>(
+      `/api/system/backups/${encodeURIComponent(name)}/restore`,
+      'POST',
+    ),
+  /** 下载走浏览器原生下载，避免走 axios 的 baseURL 和后缀处理 */
+  backupDownloadUrl: (name: string) => `/api/system/backups/${encodeURIComponent(name)}/download`,
+  /** 一键清库（清空业务表，保留账号与系统参数） */
+  backupClear: () => request<ClearDataResult>('/api/system/backups/clear', 'POST'),
+  backupUpload: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<BackupFile>('/api/system/backups/upload', 'POST', form);
+  },
 };

@@ -35,6 +35,7 @@ import SysUserPage from './pages/system/SysUserPage';
 import SysLogPage from './pages/system/SysLogPage';
 import SysParamPage from './pages/system/SysParamPage';
 import PasswordPage from './pages/system/PasswordPage';
+import SystemBackupPage from './pages/system/SystemBackupPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
@@ -92,6 +93,7 @@ const RoutesComponent = () => {
         <Route path="system/user" element={<SysUserPage />} />
         <Route path="system/log" element={<SysLogPage />} />
         <Route path="system/param" element={<SysParamPage />} />
+        <Route path="system/backup" element={<SystemBackupPage />} />
         <Route path="system/password" element={<PasswordPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />

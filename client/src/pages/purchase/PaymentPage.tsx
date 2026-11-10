@@ -64,6 +64,9 @@ const defaultItem: PaymentItemForm = {
   paidAmount: 0,
 };
 
+const blankItems = (count: number = 12): PaymentItemForm[] =>
+  Array.from({ length: count }, () => ({ ...defaultItem }));
+
 const defaultForm: Partial<Payment> = {
   supplierId: '',
   supplierName: '',
@@ -188,7 +191,7 @@ export default function PaymentPage() {
   const handleAdd = () => {
     setEditingId(null);
     setViewMode(false);
-    setForm({ ...defaultForm, items: [{ ...defaultItem }] });
+    setForm({ ...defaultForm, items: blankItems() });
     fetchSuppliers();
     setDialogOpen(true);
   };
@@ -206,7 +209,7 @@ export default function PaymentPage() {
       }));
       setForm({
         ...data,
-        items: items.length > 0 ? items : [{ ...defaultItem }],
+        items: items.length > 0 ? items : blankItems(),
       });
       if (data.supplierId) {
         fetchPurchaseIns(data.supplierId);
@@ -304,7 +307,7 @@ export default function PaymentPage() {
       ...form,
       supplierId,
       supplierName: s?.name,
-      items: [{ ...defaultItem }],
+      items: blankItems(),
     });
     fetchPurchaseIns(supplierId);
   };

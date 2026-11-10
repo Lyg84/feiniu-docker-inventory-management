@@ -50,6 +50,9 @@ const emptyItem = (): FormItem => ({
   amount: 0,
 });
 
+const blankItems = (count: number = 12): FormItem[] =>
+  Array.from({ length: count }, () => emptyItem());
+
 const ReceiptPage: React.FC = () => {
   const [page, setPage] = useState<number>(1);
   const [pageSize] = useState<number>(20);
@@ -72,7 +75,7 @@ const ReceiptPage: React.FC = () => {
   const [formAmount, setFormAmount] = useState<number>(0);
   const [formMethod, setFormMethod] = useState<string>('cash');
   const [formRemark, setFormRemark] = useState<string>('');
-  const [formItems, setFormItems] = useState<FormItem[]>([emptyItem()]);
+  const [formItems, setFormItems] = useState<FormItem[]>(blankItems());
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerDeliveries, setCustomerDeliveries] = useState<SalesDelivery[]>([]);
@@ -163,7 +166,7 @@ const ReceiptPage: React.FC = () => {
     setFormAmount(0);
     setFormMethod('cash');
     setFormRemark('');
-    setFormItems([emptyItem()]);
+    setFormItems(blankItems());
     setCustomerDeliveries([]);
     setDialogOpen(true);
   };
@@ -247,7 +250,7 @@ const ReceiptPage: React.FC = () => {
 
   const removeLine = (key: string): void => {
     setFormItems((prev: FormItem[]) =>
-      prev.length === 1 ? [emptyItem()] : prev.filter((it: FormItem) => it._key !== key)
+      prev.length === 1 ? blankItems() : prev.filter((it: FormItem) => it._key !== key)
     );
   };
 

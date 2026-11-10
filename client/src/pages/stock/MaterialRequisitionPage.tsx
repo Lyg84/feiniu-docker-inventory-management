@@ -115,7 +115,7 @@ export default function MaterialRequisitionPage() {
   const handleAdd = () => {
     setEditingId(null);
     setForm({ ...defaultForm, reqDate: new Date().toISOString().slice(0, 10) });
-    setItems([]);
+    setItems(blankRows());
     setDialogOpen(true);
   };
 
@@ -126,7 +126,7 @@ export default function MaterialRequisitionPage() {
       const detail = await materialRequisitionApi.get(record.id);
       setItems((detail.items || []).map((it) => ({ ...it })));
     } catch {
-      setItems([]);
+      setItems(blankRows());
     }
     setDialogOpen(true);
   };
@@ -166,6 +166,15 @@ export default function MaterialRequisitionPage() {
     () => items.reduce((sum: number, it: ReqItemForm) => sum + (it.quantity || 0), 0),
     [items],
   );
+
+  const blankRows = (count: number = 12): ReqItemForm[] =>
+    Array.from({ length: count }, () => ({
+      productName: '',
+      spec: '',
+      unit: '',
+      quantity: 0,
+      sortOrder: 0,
+    }));
 
   const addItem = () => {
     setItems([
@@ -212,16 +221,17 @@ export default function MaterialRequisitionPage() {
       toast.error('请选择仓库');
       return;
     }
-    if (items.length === 0) {
-      toast.error('请至少添加一条明细');
+    const filled = items.filter((it) => it.productName.trim());
+    if (filled.length === 0) {
+      toast.error('请至少填写一行明细');
       return;
     }
-    for (let i = 0; i < items.length; i++) {
-      if (!items[i].productName.trim()) {
+    for (let i = 0; i < filled.length; i++) {
+      if (!filled[i].productName.trim()) {
         toast.error(`第${i + 1}行商品名称不能为空`);
         return;
       }
-      if (!items[i].quantity || items[i].quantity <= 0) {
+      if (!filled[i].quantity || filled[i].quantity <= 0) {
         toast.error(`第${i + 1}行数量必须大于0`);
         return;
       }
@@ -231,7 +241,7 @@ export default function MaterialRequisitionPage() {
       const payload: Partial<MaterialRequisition> = {
         ...form,
         totalQty,
-        items: items.map((it, idx) => ({ ...it, sortOrder: idx })),
+        items: filled.map((it, idx) => ({ ...it, sortOrder: idx })),
       };
       if (editingId) {
         await materialRequisitionApi.update(editingId, payload);

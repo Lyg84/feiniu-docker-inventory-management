@@ -50,6 +50,9 @@ const emptyItem = (): FormItem => ({
   amount: 0,
 });
 
+const blankItems = (count: number = 12): FormItem[] =>
+  Array.from({ length: count }, () => emptyItem());
+
 const SalesReturnPage: React.FC = () => {
   const [page, setPage] = useState<number>(1);
   const [pageSize] = useState<number>(20);
@@ -70,7 +73,7 @@ const SalesReturnPage: React.FC = () => {
   const [formCustomer, setFormCustomer] = useState<string>('');
   const [formDate, setFormDate] = useState<string>(todayStr());
   const [formRemark, setFormRemark] = useState<string>('');
-  const [formItems, setFormItems] = useState<FormItem[]>([emptyItem()]);
+  const [formItems, setFormItems] = useState<FormItem[]>(blankItems());
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -155,7 +158,7 @@ const SalesReturnPage: React.FC = () => {
     setFormCustomer('');
     setFormDate(todayStr());
     setFormRemark('');
-    setFormItems([emptyItem()]);
+    setFormItems(blankItems());
     setDialogOpen(true);
   };
 
@@ -221,7 +224,7 @@ const SalesReturnPage: React.FC = () => {
 
   const removeLine = (key: string): void => {
     setFormItems((prev: FormItem[]) =>
-      prev.length === 1 ? [emptyItem()] : prev.filter((it: FormItem) => it._key !== key)
+      prev.length === 1 ? blankItems() : prev.filter((it: FormItem) => it._key !== key)
     );
   };
 
@@ -254,11 +257,12 @@ const SalesReturnPage: React.FC = () => {
       toast.error('请选择客户');
       return;
     }
-    if (formItems.some((it: FormItem) => !it.productName)) {
-      toast.error('请选择商品名称');
+    const filledItems = formItems.filter((it: FormItem) => it.productName.trim());
+    if (filledItems.length === 0) {
+      toast.error('请至少填写一行商品');
       return;
     }
-    if (formItems.some((it: FormItem) => it.quantity <= 0 || it.price < 0)) {
+    if (filledItems.some((it: FormItem) => it.quantity <= 0 || it.price < 0)) {
       toast.error('请填写正确的数量和单价');
       return;
     }
@@ -267,7 +271,7 @@ const SalesReturnPage: React.FC = () => {
       returnDate: formDate,
       remark: formRemark,
       totalAmount,
-      items: formItems.map(({ _key, ...rest }) => rest),
+      items: filledItems.map(({ _key, ...rest }) => rest),
     };
     const req = editId
       ? salesReturnApi.update(editId, payload)

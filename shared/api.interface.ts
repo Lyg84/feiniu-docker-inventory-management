@@ -321,3 +321,29 @@ export interface PriceHistory {
   price: number;
   quantity: number;
 }
+
+/** 备份文件（pg_dump 自定义格式，后缀 .dump） */
+export interface BackupFile {
+  name: string;
+  size: number;
+  createdAt: string;
+  /** manual=手动备份，pre-restore=还原前自动快照，pre-clear=清库前快照，upload=从本地上传 */
+  kind: 'manual' | 'pre-restore' | 'pre-clear' | 'upload';
+}
+
+/** 一键清空业务数据的结果 */
+export interface ClearDataResult {
+  preSnapshot: string;
+  before: Record<string, number>;
+  after: Record<string, number>;
+  message: string;
+}
+
+/** 备份能力自检结果 */
+export interface BackupStatus {
+  available: boolean;
+  version: string;
+  dir: string;
+  database: string;
+  host: string;
+}

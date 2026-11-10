@@ -64,6 +64,9 @@ const emptyItem = (): FormItem => ({
   amount: 0,
 });
 
+const blankItems = (count: number = 12): FormItem[] =>
+  Array.from({ length: count }, () => emptyItem());
+
 /** 把后端返回的 message 提出来给用户看，别一律是「失败」 */
 function apiErrText(err: unknown, fallback: string): string {
   const msg = (err as { response?: { data?: { message?: unknown } } })?.response?.data
@@ -97,7 +100,7 @@ const DeliveryPage: React.FC = () => {
   const [customerInput, setCustomerInput] = useState<string>('');
   const [formDate, setFormDate] = useState<string>(todayStr());
   const [formRemark, setFormRemark] = useState<string>('');
-  const [formItems, setFormItems] = useState<FormItem[]>([emptyItem()]);
+  const [formItems, setFormItems] = useState<FormItem[]>(blankItems());
   const [formAudited, setFormAudited] = useState<boolean>(false);
   /** 当前编辑单据的单号，打印时用；新建未保存时为空 */
   const [formOrderNo, setFormOrderNo] = useState<string>('');
@@ -269,7 +272,7 @@ const DeliveryPage: React.FC = () => {
     setCustomerInput('');
     setFormDate(todayStr());
     setFormRemark('');
-    setFormItems([emptyItem()]);
+    setFormItems(blankItems());
     setDialogOpen(true);
   };
 
@@ -438,7 +441,7 @@ const DeliveryPage: React.FC = () => {
 
   const removeLine = (key: string): void => {
     setFormItems((prev: FormItem[]) =>
-      prev.length === 1 ? [emptyItem()] : prev.filter((it: FormItem) => it._key !== key)
+      prev.length === 1 ? blankItems() : prev.filter((it: FormItem) => it._key !== key)
     );
   };
 
@@ -582,11 +585,12 @@ const DeliveryPage: React.FC = () => {
   };
 
   const handleSave = async (): Promise<void> => {
-    if (formItems.some((it: FormItem) => !it.productName)) {
-      toast.error('请选择商品名称');
+    const filledItems = formItems.filter((it: FormItem) => it.productName.trim());
+    if (filledItems.length === 0) {
+      toast.error('请至少填写一行商品');
       return;
     }
-    if (formItems.some((it: FormItem) => it.quantity <= 0 || it.price < 0)) {
+    if (filledItems.some((it: FormItem) => it.quantity <= 0 || it.price < 0)) {
       toast.error('请填写正确的数量和单价');
       return;
     }
@@ -633,7 +637,7 @@ const DeliveryPage: React.FC = () => {
       orderDate: formDate,
       remark: formRemark,
       totalAmount,
-      items: formItems.map(({ _key, ...rest }) => rest),
+      items: filledItems.map(({ _key, ...rest }) => rest),
     };
     const req = editId
       ? salesDeliveryApi.update(editId, payload)
@@ -725,7 +729,7 @@ const DeliveryPage: React.FC = () => {
         customers.find((c: Customer) => c.id === formCustomer)?.name ||
         '',
       customerPhone: customers.find((c: Customer) => c.id === formCustomer)?.phone,
-      items: formItems.map((it: FormItem) => ({
+      items: formItems.filter((it: FormItem) => it.productName.trim()).map((it: FormItem) => ({
         productName: it.productName,
         spec: it.spec,
         unit: it.unit,

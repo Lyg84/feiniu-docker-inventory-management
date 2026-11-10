@@ -11,6 +11,8 @@ import { EmployeeController } from './employee.controller';
 import { EmployeeService } from './employee.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { BackupController } from './backup.controller';
+import { BackupService } from './backup.service';
 
 @Module({
   controllers: [
@@ -19,6 +21,7 @@ import { AuthService } from './auth.service';
     SysParamController,
     EmployeeController,
     AuthController,
+    BackupController,
   ],
   providers: [
     SysUserService,
@@ -26,8 +29,9 @@ import { AuthService } from './auth.service';
     SysParamService,
     EmployeeService,
     AuthService,
+    BackupService,
     { provide: APP_INTERCEPTOR, useClass: SysLogInterceptor },
   ],
-  exports: [SysUserService, SysLogService, SysParamService, EmployeeService, AuthService],
+  exports: [SysUserService, SysLogService, SysParamService, EmployeeService, AuthService, BackupService],
 })
 export class SystemModule {}

@@ -50,6 +50,9 @@ const defaultItem: DeliveryItem = {
   sortOrder: 0,
 };
 
+const blankItems = (count: number = 12): DeliveryItem[] =>
+  Array.from({ length: count }, () => ({ ...defaultItem }));
+
 const defaultForm: Partial<PurchaseIn> = {
   supplierId: '',
   supplierName: '',
@@ -171,7 +174,7 @@ export default function PurchaseInPage() {
   const handleAdd = () => {
     setEditingId(null);
     setViewMode(false);
-    setForm({ ...defaultForm, items: [{ ...defaultItem }] });
+    setForm({ ...defaultForm, items: blankItems() });
     fetchSuppliers();
     fetchProducts();
     setDialogOpen(true);

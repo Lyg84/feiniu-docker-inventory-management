@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Put, Delete, Query, Param, Body, HttpCode, HttpStatus } from '@nestjs/common';
-import { NeedLogin } from '@lark-apaas/fullstack-nestjs-core';
+import { NeedLogin } from '@server/local';
 import { SalesReturnService } from './sales-return.service';
 import type { SalesReturn, PageResult } from '@shared/api.interface';
 

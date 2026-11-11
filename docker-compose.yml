@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: jxc-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jxc
+      POSTGRES_PASSWORD: jxc123456
+      POSTGRES_DB: jxc
+      TZ: Asia/Shanghai
+      # 老 CPU / 部分 NAS 上避免 initdb 因指令集报错
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - ./data/pg:/var/lib/postgresql/data
+      # 首次启动自动建表 + 写入默认管理员 admin / admin123
+      - ./drizzle:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jxc -d jxc"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - jxc-net
+
+  app:
+    image: jxc-app:latest
+    build: .
+    container_name: jxc-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 3000
+      DATABASE_URL: postgres://jxc:jxc123456@db:5432/jxc
+      DATABASE_POOL_MAX: 10
+      CLIENT_BASE_PATH: ""
+      TZ: Asia/Shanghai
+      # 备份文件目录（页面上「立即备份」生成的 .dump 落在这里，宿主机可见）
+      BACKUP_DIR: /app/backup
+      # 打印客户端插件目录（宿主机 ./downloads，由 sync-hiprint.sh 定时同步官方最新版）
+      PRINT_PLUGIN_DIR: /app/downloads
+    volumes:
+      - ./backup:/app/backup
+      - ./downloads:/app/downloads
+    ports:
+      - "3000:3000"
+    networks:
+      - jxc-net
+
+networks:
+  jxc-net:
+    driver: bridge

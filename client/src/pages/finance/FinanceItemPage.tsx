@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
+import { Table, TableColumnsType } from 'antd';
 import { Plus, Pencil, Trash2, Search, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@client/src/components/ui/button';
@@ -30,7 +30,7 @@ import {
 import { financeItemApi } from '@client/src/api';
 import type { FinanceItem } from '@shared/api.interface';
 import { filterByPinyin } from '@/lib/pinyin-match';
-import { showConfirm } from '@lark-apaas/client-toolkit';
+import { showConfirm } from '@/lib/confirm';
 
 const defaultForm: Partial<FinanceItem> = {
   name: '',

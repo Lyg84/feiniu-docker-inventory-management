@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { Inject } from '@nestjs/common';
-import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '@lark-apaas/fullstack-nestjs-core';
+import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '@server/local';
 import { eq } from 'drizzle-orm';
 import { sysParam } from '@server/database/schema';
 import type { SysParam } from '@shared/api.interface';

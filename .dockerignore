@@ -1,0 +1,12 @@
+node_modules
+dist
+logs
+.git
+.githooks
+.spark
+.spark_project
+*.log
+.env
+.env.local
+bak
+test-results

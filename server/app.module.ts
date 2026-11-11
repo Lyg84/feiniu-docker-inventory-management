@@ -1,6 +1,6 @@
 import { APP_FILTER } from '@nestjs/core';
 import { Module } from '@nestjs/common';
-import { PlatformModule } from '@lark-apaas/fullstack-nestjs-core';
+import { PlatformModule } from '@server/local';
 
 import { GlobalExceptionFilter } from './common/filters/exception.filter';
 import { ViewModule } from './modules/view/view.module';
@@ -18,6 +18,7 @@ import { StockOutModule } from './modules/stock-out/stock-out.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
 import { SystemModule } from './modules/system/system.module';
+import { PrintPluginModule } from './modules/print-plugin/print-plugin.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { SystemModule } from './modules/system/system.module';
     FinanceModule,
     WarehouseModule,
     SystemModule,
+    PrintPluginModule,
     ViewModule,
   ],
   providers: [

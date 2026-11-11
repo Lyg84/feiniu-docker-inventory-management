@@ -1,6 +1,6 @@
 import { Inject, Injectable, ConflictException, NotFoundException, Logger } from '@nestjs/common';
-import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '@lark-apaas/fullstack-nestjs-core';
-import { eq, ilike, count, desc, and, or, isNull } from 'drizzle-orm';
+import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '@server/local';
+import { eq, gt, ilike, count, desc, and, or, isNull } from 'drizzle-orm';
 import { product, salesDelivery, salesDeliveryItem } from '@server/database/schema';
 import type { Product, PageResult, PriceHistory } from '@shared/api.interface';
 
@@ -212,13 +212,23 @@ export class ProductService {
     this.logger.log(`删除产品: ${id}`);
   }
 
-  async getPriceHistory(productName: string, customerId: string): Promise<PriceHistory[]> {
+  async getPriceHistory(
+    productName: string,
+    customerId: string,
+    spec?: string,
+  ): Promise<PriceHistory[]> {
+    const specFilter =
+      spec && spec.trim()
+        ? eq(salesDeliveryItem.spec, spec.trim())
+        : or(isNull(salesDeliveryItem.spec), eq(salesDeliveryItem.spec, ''));
     const rows = await this.db
       .select({
         orderDate: salesDelivery.orderDate,
         orderNo: salesDelivery.orderNo,
+        spec: salesDeliveryItem.spec,
         price: salesDeliveryItem.price,
         quantity: salesDeliveryItem.quantity,
+        auditStatus: salesDelivery.auditStatus,
       })
       .from(salesDeliveryItem)
       .innerJoin(salesDelivery, eq(salesDeliveryItem.deliveryId, salesDelivery.id))
@@ -226,18 +236,29 @@ export class ProductService {
         and(
           eq(salesDeliveryItem.productName, productName),
           eq(salesDelivery.customerId, customerId),
-          eq(salesDelivery.auditStatus, 'audited'),
+          gt(salesDeliveryItem.price, '0'),
+          specFilter,
         ),
       )
-      .orderBy(desc(salesDelivery.orderDate))
-      .limit(5);
+      .orderBy(desc(salesDelivery.orderDate), desc(salesDelivery.createdAt))
+      .limit(12);
 
-    return rows.map((row) => ({
-      date: row.orderDate,
-      orderNo: row.orderNo,
-      price: Number(row.price),
-      quantity: Number(row.quantity),
-    }));
+    const seen = new Set<string>();
+    return rows
+      .filter((row) => {
+        if (seen.has(row.orderNo)) return false;
+        seen.add(row.orderNo);
+        return true;
+      })
+      .slice(0, 5)
+      .map((row) => ({
+        date: row.orderDate,
+        orderNo: row.orderNo,
+        spec: row.spec || '',
+        audited: row.auditStatus === 'audited',
+        price: Number(row.price),
+        quantity: Number(row.quantity),
+      }));
   }
 
   /**

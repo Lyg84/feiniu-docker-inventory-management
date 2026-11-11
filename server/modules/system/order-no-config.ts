@@ -1,5 +1,5 @@
 import { inArray } from 'drizzle-orm';
-import type { PostgresJsDatabase } from '@lark-apaas/fullstack-nestjs-core';
+import type { PostgresJsDatabase } from '@server/local';
 
 import { sysParam } from '@server/database/schema';
 

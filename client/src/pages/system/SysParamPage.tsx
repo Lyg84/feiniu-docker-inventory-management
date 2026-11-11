@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
+import { Table, TableColumnsType } from 'antd';
 import { Pencil, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@client/src/components/ui/button';

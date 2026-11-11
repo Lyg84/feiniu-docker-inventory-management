@@ -5,19 +5,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="/favicon.svg">
-  <title>妙搭</title>
+  <title>进销存管理系统</title>
   <script>
-    try {
-      window.__platform__ = JSON.parse('{{{__platform__}}}');
-    } catch (e) {
-      console.error('Failed to parse __platform__', e);
-    }
+    // 本地部署：平台信息由前端兜底，后端不再注入模板占位符
+    window.__platform__ = window.__platform__ || {};
   </script>
 </head>
 
 <body>
   <div id="root"></div>
-  <script type="module" src="/client/src/index.tsx"></script>
+  <script type="module" src="/src/index.tsx"></script>
 </body>
 
 </html>

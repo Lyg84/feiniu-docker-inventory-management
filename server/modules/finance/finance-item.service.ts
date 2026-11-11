@@ -4,7 +4,7 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
-import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '@lark-apaas/fullstack-nestjs-core';
+import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '@server/local';
 import { eq, desc } from 'drizzle-orm';
 import { financeItem } from '@server/database/schema';
 import type { FinanceItem } from '@shared/api.interface';

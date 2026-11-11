@@ -1,4 +1,4 @@
-import { NotFoundRender } from "@lark-apaas/client-toolkit/components/NotFoundRender";
+import { NotFoundRender } from "@/components/LocalFallbacks";
 
 const NotFound = () => {
   return (

@@ -49,8 +49,10 @@ export const productApi = {
   remove: (id: string) => request<void>(`/api/products/${id}`, 'DELETE'),
   import: (rows: Array<Record<string, unknown>>) =>
     request<ImportSummary>('/api/products/import', 'POST', { rows }),
-  priceHistory: (productName: string, customerId: string) =>
-    request<PriceHistory[]>(`/api/products/price-history?productName=${encodeURIComponent(productName)}&customerId=${customerId}`),
+  priceHistory: (productName: string, customerId: string, spec: string = '') =>
+    request<PriceHistory[]>(
+      `/api/products/price-history?productName=${encodeURIComponent(productName)}&customerId=${customerId}&spec=${encodeURIComponent(spec)}`
+    ),
 };
 
 export const supplierApi = {

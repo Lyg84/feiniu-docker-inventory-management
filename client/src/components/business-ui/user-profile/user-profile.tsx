@@ -1,6 +1,6 @@
 'use client';
 
-import { logger } from '@lark-apaas/client-toolkit/logger';
+import { logger } from '@/lib/logger';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import SHA1 from 'crypto-js/sha1';

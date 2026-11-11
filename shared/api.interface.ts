@@ -318,6 +318,10 @@ export interface SysParam {
 export interface PriceHistory {
   date: string;
   orderNo: string;
+  /** 规格型号：历史价按「商品+规格」分别统计 */
+  spec?: string;
+  /** 该单据是否已审核；未审核的仅作参考 */
+  audited?: boolean;
   price: number;
   quantity: number;
 }
@@ -327,7 +331,7 @@ export interface BackupFile {
   name: string;
   size: number;
   createdAt: string;
-  /** manual=手动备份，pre-restore=还原前自动快照，pre-clear=清库前快照，upload=从本地上传 */
+  /** manual=手动备份，pre-restore=还原前自动快照，upload=从本地上传 */
   kind: 'manual' | 'pre-restore' | 'pre-clear' | 'upload';
 }
 

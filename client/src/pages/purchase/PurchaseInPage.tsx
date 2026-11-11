@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
+import { Table, TableColumnsType } from 'antd';
 import {
   Plus,
   Pencil,
@@ -38,7 +38,7 @@ import type { PurchaseIn, DeliveryItem, Supplier, Product } from '@shared/api.in
 import PinyinSelect from '@client/src/components/PinyinSelect';
 import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
 import { buildSupplierOptions, buildProductIdOptions } from '@/lib/entity-options';
-import { showConfirm } from '@lark-apaas/client-toolkit';
+import { showConfirm } from '@/lib/confirm';
 
 const defaultItem: DeliveryItem = {
   productName: '',
@@ -187,7 +187,7 @@ export default function PurchaseInPage() {
     fetchSuppliers();
     fetchProducts();
     purchaseInApi.get(record.id).then((data) => {
-      setForm({ ...data, items: data.items && data.items.length > 0 ? data.items : [{ ...defaultItem }] });
+      setForm({ ...data, items: data.items && data.items.length > 0 ? data.items : blankItems() });
       setDialogOpen(true);
     });
   };

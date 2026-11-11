@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Table, type TableColumnsType } from 'antd';
-import { Plus, Search, Eye, Pencil, Trash2, CheckCircle, RotateCcw, History, Printer, Loader2 } from 'lucide-react';
+import { Plus, Search, Eye, Pencil, Trash2, CheckCircle, RotateCcw, History, Printer, Loader2, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@client/src/components/ui/button';
@@ -114,6 +114,12 @@ const DeliveryPage: React.FC = () => {
   const [priceHistory, setPriceHistory] = useState<PriceHistory[]>([]);
   const [priceHistoryLoading, setPriceHistoryLoading] = useState<boolean>(false);
   const [activePriceRow, setActivePriceRow] = useState<string | null>(null);
+  /** 历史价格浮层的位置（fixed 定位，避免被窄小的单价列挤成一条缝） */
+  const [pricePanelPos, setPricePanelPos] = useState<{ top: number; left: number } | null>(
+    null
+  );
+  /** 每行单价单元格的 DOM，浮层按它摆位置 */
+  const priceCellRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // print
   const [printState, setPrintState] = useState<PrintClientState>({
@@ -145,6 +151,26 @@ const DeliveryPage: React.FC = () => {
     () => buildProductOptions(products),
     [products]
   );
+
+  /** 规格候选：按当前行已选商品名，列出该商品名下的所有规格，输入数字/拼音即可过滤 */
+  const specOptionsByProduct = useMemo<Map<string, ComboOption[]>>(() => {
+    const map = new Map<string, ComboOption[]>();
+    products.forEach((p: Product) => {
+      const spec = (p.spec || '').trim();
+      if (!spec) return;
+      const list = map.get(p.name) || [];
+      if (list.some((o: ComboOption) => o.value === spec)) return;
+      list.push({
+        value: spec,
+        label: spec,
+        hint: `库存 ${p.stockQty ?? 0}${p.unit || ''}`,
+        weight: p.usageCount ?? 0,
+        payload: p,
+      });
+      map.set(p.name, list);
+    });
+    return map;
+  }, [products]);
 
   const customerOptions = useMemo<ComboOption[]>(
     () =>
@@ -463,21 +489,38 @@ const DeliveryPage: React.FC = () => {
    * autoFill=true 时把上次成交价直接写进单价（只在价格还等于商品资料价、没被手改时覆盖）。
    */
   const loadPriceHistory = useCallback(
-    (key: string, productName: string, customerId: string, autoFill: boolean): void => {
+    (
+      key: string,
+      productName: string,
+      spec: string,
+      customerId: string,
+      autoFill: boolean
+    ): void => {
       if (!productName || !customerId) {
         setPriceHistory([]);
         return;
       }
+      const anchor = priceCellRefs.current[key];
+      if (anchor) {
+        const rect = anchor.getBoundingClientRect();
+        const width = 460;
+        const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8));
+        const top = Math.min(rect.bottom + 6, window.innerHeight - 260);
+        setPricePanelPos({ top: Math.max(8, top), left });
+      }
       setActivePriceRow(key);
       setPriceHistoryLoading(true);
       productApi
-        .priceHistory(productName, customerId)
+        .priceHistory(productName, customerId, spec)
         .then((history: PriceHistory[]) => {
           setPriceHistory(history);
-          if (!autoFill || history.length === 0) return;
-          const lastPrice = history[0].price;
+          if (!autoFill) return;
+          const lastPrice = history.find((h: PriceHistory) => h.price > 0)?.price;
+          if (lastPrice === undefined) return;
           const defaultPrice =
-            products.find((p: Product) => p.name === productName)?.price ?? 0;
+            products.find(
+              (p: Product) => p.name === productName && (p.spec || '') === (spec || '')
+            )?.price ?? 0;
           setFormItems((prev: FormItem[]) =>
             prev.map((it: FormItem) => {
               if (it._key !== key) return it;
@@ -506,7 +549,7 @@ const DeliveryPage: React.FC = () => {
       unit: prod.unit || '',
       price: prod.price || 0,
     });
-    loadPriceHistory(key, prod.name, formCustomer, true);
+    loadPriceHistory(key, prod.name, prod.spec || '', formCustomer, true);
   };
 
   const handleProductChange = (key: string, productName: string): void => {
@@ -516,7 +559,7 @@ const DeliveryPage: React.FC = () => {
       return;
     }
     updateItem(key, { productName });
-    loadPriceHistory(key, productName, formCustomer, true);
+    loadPriceHistory(key, productName, '', formCustomer, true);
   };
 
   /** 手改了规格/单位后，按「名称+规格」重新挂回档案；挂不上就解绑，保存时后端按名称+规格建档 */
@@ -538,18 +581,36 @@ const DeliveryPage: React.FC = () => {
       patch.price = hit.price;
     }
     updateItem(key, patch);
+    if (name) loadPriceHistory(key, name, hit.spec || '', formCustomer, true);
   };
 
   const resetPricePanel = (): void => {
     setPriceHistory([]);
     setActivePriceRow(null);
+    setPricePanelPos(null);
+  };
+
+  /** 打开历史价格浮层：位置由 loadPriceHistory 按单价单元格自动算 */
+  const openPricePanel = (key: string, productName: string, spec: string): void => {
+    loadPriceHistory(key, productName, spec, formCustomer, false);
+  };
+
+  /** 客户敲完/选完，光标直接落到第一行商品名称，省一次手动点击 */
+  const focusFirstProduct = (): void => {
+    window.setTimeout(() => {
+      const el = document.querySelector(
+        '[data-product-row="0"] input'
+      ) as HTMLInputElement | null;
+      if (el) el.focus();
+    }, 80);
   };
 
   /** 换了客户：把已填商品的行重新按新客户带一次价 */
   const refreshPricesForCustomer = (customerId: string): void => {
     if (!customerId) return;
     formItems.forEach((it: FormItem) => {
-      if (it.productName) loadPriceHistory(it._key, it.productName, customerId, true);
+      if (it.productName)
+        loadPriceHistory(it._key, it.productName, it.spec || '', customerId, true);
     });
   };
 
@@ -577,6 +638,7 @@ const DeliveryPage: React.FC = () => {
       setFormCustomer(hit.id);
       refreshPricesForCustomer(hit.id);
     }
+    focusFirstProduct();
   };
 
   const applyHistoryPrice = (price: number): void => {
@@ -771,6 +833,41 @@ const DeliveryPage: React.FC = () => {
     }
   };
 
+  const [pluginDownloading, setPluginDownloading] = useState(false);
+
+  const handleDownloadPlugin = async (): Promise<void> => {
+    setPluginDownloading(true);
+    try {
+      const res = await fetch('/api/print-plugin/meta');
+      const meta = (await res.json()) as {
+        available?: boolean;
+        version?: string;
+        fileName?: string;
+        size?: number;
+        upstreamUrl?: string;
+      };
+      if (meta?.available) {
+        const a = document.createElement('a');
+        a.href = `/api/print-plugin/file?v=${encodeURIComponent(meta.version || '')}`;
+        a.download = meta.fileName || 'hiprint.exe';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        const mb = ((meta.size || 0) / 1048576).toFixed(1);
+        toast.success(`开始下载打印插件 v${meta.version}（${mb}MB），下完双击安装即可`);
+      } else if (meta?.upstreamUrl) {
+        toast.error('服务器尚未同步插件包，已跳转官方发布页');
+        window.open(meta.upstreamUrl, '_blank');
+      } else {
+        toast.error('插件包还没有同步到服务器，请稍后再试');
+      }
+    } catch {
+      toast.error('获取插件信息失败，请稍后再试');
+    } finally {
+      setPluginDownloading(false);
+    }
+  };
+
   const columns: TableColumnsType<SalesDelivery> = [
     { title: '送货单号', dataIndex: 'orderNo', width: 160, fixed: 'left' },
     { title: '日期', dataIndex: 'orderDate', width: 120 },
@@ -961,6 +1058,15 @@ const DeliveryPage: React.FC = () => {
         <Button size="sm" variant="outline" onClick={handleReset}>
           重置
         </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleDownloadPlugin}
+          disabled={pluginDownloading}
+          title="下载 electron-hiprint 打印客户端（服务器已同步最新版）"
+        >
+          {pluginDownloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} 下载打印插件
+        </Button>
       </div>
 
       <div className="px-3 py-2 border-b flex items-center gap-2 flex-wrap bg-slate-50">
@@ -1040,7 +1146,12 @@ const DeliveryPage: React.FC = () => {
           </DialogHeader>
 
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="flex items-center gap-2">
+            <div
+              className="flex items-center gap-2"
+              onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
+                if (e.key === 'Enter' && customerInput.trim()) focusFirstProduct();
+              }}
+            >
               <label className="w-16 text-gray-600">客户<span className="text-red-500">*</span></label>
               <PinyinAutoComplete
                 value={customerInput}
@@ -1103,6 +1214,7 @@ const DeliveryPage: React.FC = () => {
               {formItems.map((item: FormItem, idx: number) => (
                 <div
                   key={item._key}
+                  data-product-row={idx}
                   className="grid grid-cols-[1.8fr_1fr_0.7fr_0.8fr_0.9fr_0.9fr_0.6fr] border-t border-gray-200 items-center"
                 >
                   <div className="px-1 py-1 border-r border-gray-200">
@@ -1123,20 +1235,34 @@ const DeliveryPage: React.FC = () => {
                     />
                   </div>
                   <div className="px-1 py-1 border-r border-gray-200">
-                    <Input
+                    <PinyinAutoComplete
                       value={item.spec || ''}
-                      placeholder="规格"
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      options={specOptionsByProduct.get(item.productName) || []}
+                      onChange={(v: string) => {
+                        resetPricePanel();
                         updateItem(item._key, {
-                          spec: e.target.value,
+                          spec: v,
                           productId: undefined,
-                        })
+                        });
+                        const opts =
+                          specOptionsByProduct.get(item.productName) || [];
+                        const exact = v.trim();
+                        if (exact && opts.some((o: ComboOption) => o.value === exact)) {
+                          rebindBySpec(item._key, item.productName, exact);
+                        }
+                      }}
+                      onSelect={(v: string) => {
+                        rebindBySpec(item._key, item.productName, v);
+                      }}
+                      disabled={viewMode}
+                      placeholder="规格"
+                      emptyText={
+                        item.productName
+                          ? '该商品只有这些规格档案'
+                          : '先选商品名称'
                       }
-                      onBlur={() =>
-                        rebindBySpec(item._key, item.productName, item.spec || '')
-                      }
-                      className="h-7 text-xs"
-                      readOnly={viewMode}
+                      inputClassName="h-7 text-xs"
+                      style={{ width: '100%' }}
                     />
                   </div>
                   <div className="px-1 py-1 border-r border-gray-200">
@@ -1167,7 +1293,12 @@ const DeliveryPage: React.FC = () => {
                       readOnly={viewMode}
                     />
                   </div>
-                  <div className="px-1 py-1 border-r border-gray-200 relative">
+                  <div
+                    ref={(el) => {
+                      priceCellRefs.current[item._key] = el;
+                    }}
+                    className="px-1 py-1 border-r border-gray-200 relative"
+                  >
                     <div className="flex items-center gap-1">
                       <Input
                         type="number"
@@ -1178,12 +1309,12 @@ const DeliveryPage: React.FC = () => {
                         className="h-7 text-xs text-right flex-1"
                         readOnly={viewMode}
                         onFocus={() => {
-                          if (
-                            item.productName &&
-                            formCustomer &&
-                            activePriceRow !== item._key
-                          ) {
-                            loadPriceHistory(item._key, item.productName, formCustomer, false);
+                          if (item.productName && formCustomer) {
+                            openPricePanel(
+                              item._key,
+                              item.productName,
+                              item.spec || ''
+                            );
                           }
                         }}
                       />
@@ -1195,12 +1326,12 @@ const DeliveryPage: React.FC = () => {
                           onClick={() => {
                             if (activePriceRow === item._key) {
                               setActivePriceRow(null);
+                              setPricePanelPos(null);
                             } else {
-                              loadPriceHistory(
+                              openPricePanel(
                                 item._key,
                                 item.productName,
-                                formCustomer,
-                                false
+                                item.spec || ''
                               );
                             }
                           }}
@@ -1209,35 +1340,52 @@ const DeliveryPage: React.FC = () => {
                         </button>
                       )}
                     </div>
-                    {activePriceRow === item._key && (
-                      <div className="absolute z-10 top-full left-1 right-1 mt-1 bg-white border border-gray-200 rounded shadow-md text-xs">
-                        <div className="px-2 py-1 bg-gray-50 font-medium text-gray-700 border-b">
+                    {activePriceRow === item._key && pricePanelPos && (
+                      <div
+                        style={{
+                          position: 'fixed',
+                          top: pricePanelPos.top,
+                          left: pricePanelPos.left,
+                          width: 460,
+                        }}
+                        className="z-50 bg-white border border-gray-300 rounded shadow-lg text-xs"
+                      >
+                        <div className="px-3 py-1.5 bg-gray-50 font-medium text-gray-700 border-b whitespace-nowrap">
                           {formCustomer
-                            ? `近5次历史价格（${customerNameOf(formCustomer)}）`
+                            ? `近5次历史价格（${customerNameOf(formCustomer)} · ${
+                                item.productName
+                              }${item.spec ? ' ' + item.spec : ''}）`
                             : '近5次历史价格（请先选客户）'}
                         </div>
                         {priceHistoryLoading ? (
-                          <div className="px-2 py-2 text-gray-400">加载中...</div>
+                          <div className="px-3 py-2 text-gray-400">加载中...</div>
                         ) : priceHistory.length === 0 ? (
-                          <div className="px-2 py-2 text-gray-400">
-                            {formCustomer ? '暂无历史价格' : '先选客户，可自动带出上次成交价'}
+                          <div className="px-3 py-2 text-gray-400">
+                            {formCustomer
+                              ? '该规格还没有成交记录（0 元与空行不计入）'
+                              : '先选客户，可自动带出上次成交价'}
                           </div>
                         ) : (
-                          <div className="max-h-40 overflow-y-auto">
-                            {priceHistory.map((h: PriceHistory, i: number) => (
-                              <div
-                                key={i}
-                                className="grid grid-cols-3 px-2 py-1 hover:bg-blue-50 cursor-pointer border-b last:border-b-0"
-                                onClick={() => applyHistoryPrice(h.price)}
-                              >
-                                <span className="text-gray-600">{h.date}</span>
-                                <span className="text-gray-600">{h.orderNo}</span>
-                                <span className="text-right font-medium text-blue-700">
-                                  ¥{h.price.toFixed(2)} × {h.quantity}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
+                          priceHistory.map((h: PriceHistory, i: number) => (
+                            <div
+                              key={i}
+                              className="flex items-center gap-2 px-3 py-1.5 hover:bg-blue-50 cursor-pointer border-b last:border-b-0 whitespace-nowrap"
+                              onClick={() => applyHistoryPrice(h.price)}
+                            >
+                              <span className="text-gray-500 w-20 shrink-0">{h.date}</span>
+                              <span className="text-gray-700 flex-1 truncate">
+                                {h.orderNo}
+                                {h.audited === false && (
+                                  <span className="ml-1 text-[10px] text-orange-600 border border-orange-300 rounded px-1">
+                                    未审核
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-right font-medium text-blue-700 shrink-0">
+                                ¥{h.price.toFixed(2)} × {h.quantity}
+                              </span>
+                            </div>
+                          ))
                         )}
                       </div>
                     )}

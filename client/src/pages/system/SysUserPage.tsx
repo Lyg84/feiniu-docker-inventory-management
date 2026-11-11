@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
+import { Table, TableColumnsType } from 'antd';
 import { Plus, Pencil, Trash2, Search, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@client/src/components/ui/button';
@@ -22,7 +22,7 @@ import {
 } from '@client/src/components/ui/select';
 import { systemApi } from '@client/src/api';
 import type { SysUser } from '@shared/api.interface';
-import { showConfirm } from '@lark-apaas/client-toolkit';
+import { showConfirm } from '@/lib/confirm';
 
 interface UserForm extends Partial<SysUser> {
   password?: string;

@@ -35,8 +35,9 @@ export class ProductController {
   async priceHistory(
     @Query('productName') productName: string,
     @Query('customerId') customerId: string,
+    @Query('spec') spec?: string,
   ): Promise<PriceHistory[]> {
-    return this.productService.getPriceHistory(productName, customerId);
+    return this.productService.getPriceHistory(productName, customerId, spec);
   }
 
   @Get(':id')

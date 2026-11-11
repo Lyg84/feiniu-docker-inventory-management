@@ -1,0 +1,65 @@
+## 第一步：安装依赖
+
+1. 在文件管理器地址栏，复制项目根目录路径。
+2. CMD 进入项目根目录
+
+
+cd /d D:\xxx\进销存管理系统
+npm install
+
+
+安装根目录依赖。
+
+3. **安装后端 server 依赖**
+
+
+cd server
+npm install
+
+
+4. **安装前端 client 依赖**
+
+
+cd ../client
+npm install
+
+
+## 第二步：数据库配置
+
+1. `server/.env` 文件，配置 PostgreSQL 数据库账号密码
+
+
+DATABASE_URL="postgresql://postgres:你的密码@localhost:5432/jxc_db"
+
+
+> 
+> 没有 PostgreSQL：需要先安装 PostgreSQL 数据库，新建数据库`jxc_db`。
+
+2. 执行数据库表迁移
+
+
+cd server
+npx prisma migrate dev
+
+
+## 第三步：启动后端服务
+
+新开一个 CMD 窗口
+
+
+cd /d D:\xxx\进销存管理系统\server
+npm run start:dev
+
+
+后端默认端口：`http://localhost:3000`
+
+## 第四步：启动前端
+
+再新开 CMD 窗口
+
+
+cd /d D:\xxx\进销存管理系统\client
+npm run dev
+
+
+终端输出访问地址，一般是 `http://localhost:5173`，浏览器打开这个地址登录系统。

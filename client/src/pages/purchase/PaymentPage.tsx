@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
+import { Table, TableColumnsType } from 'antd';
 import {
   Plus,
   Pencil,
@@ -44,7 +44,7 @@ import type { Payment, Supplier, PurchaseIn } from '@shared/api.interface';
 import PinyinSelect from '@client/src/components/PinyinSelect';
 import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
 import { buildSupplierOptions } from '@/lib/entity-options';
-import { showConfirm } from '@lark-apaas/client-toolkit';
+import { showConfirm } from '@/lib/confirm';
 
 interface PaymentItemForm {
   id?: string;

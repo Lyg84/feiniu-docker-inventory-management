@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { Table, TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
+import { Table, TableColumnsType } from 'antd';
 import { Search, RefreshCw, Calendar as CalendarIcon, Eye, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -662,7 +662,7 @@ export default function PurchaseSearchPage() {
     <div className="bg-white rounded border border-gray-200">
       <div className="p-3 border-b border-gray-200">
         <div className="text-base font-semibold text-gray-800 mb-3">采购单据查找</div>
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
           <div className="space-y-1 w-48">
             <Label>供应商</Label>
             <PinyinSelect
@@ -677,7 +677,7 @@ export default function PurchaseSearchPage() {
             <Label>快捷时间</Label>
             <QuickRangeSelect value={range} onChange={handleRangeChange} className="h-8 w-24" />
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1 w-[290px]">
             <Label>日期范围</Label>
             <DateRangePicker
               startDate={startDate}
@@ -692,7 +692,7 @@ export default function PurchaseSearchPage() {
               }}
             />
           </div>
-          <div className="space-y-1 flex-1 min-w-[180px]">
+          <div className="space-y-1 w-56">
             <Label>关键字</Label>
             <Input
               value={keyword}

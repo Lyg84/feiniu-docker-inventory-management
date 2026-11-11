@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
+import { Table, TableColumnsType } from 'antd';
 import { Plus, Pencil, Trash2, Search, RefreshCw, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@client/src/components/ui/button';
@@ -18,7 +18,7 @@ import type { FinanceExpense, FinanceItem } from '@shared/api.interface';
 import PinyinSelect from '@client/src/components/PinyinSelect';
 import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
 import { buildFinanceItemOptions } from '@/lib/entity-options';
-import { showConfirm } from '@lark-apaas/client-toolkit';
+import { showConfirm } from '@/lib/confirm';
 import { exportToExcel, fetchAllPages, todayStamp } from '@/lib/excel-export';
 
 const todayStr = new Date().toISOString().split('T')[0];

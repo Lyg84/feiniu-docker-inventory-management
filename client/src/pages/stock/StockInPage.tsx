@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
+import { Table, TableColumnsType } from 'antd';
 import {
   Plus,
   Pencil,
@@ -30,7 +30,7 @@ import type { StockIn, Warehouse, Product } from '@shared/api.interface';
 import PinyinSelect from '@client/src/components/PinyinSelect';
 import type { ComboOption } from '@client/src/components/PinyinAutoComplete';
 import { buildWarehouseOptions, buildProductIdOptions } from '@/lib/entity-options';
-import { showConfirm } from '@lark-apaas/client-toolkit';
+import { showConfirm } from '@/lib/confirm';
 import { exportToExcel, fetchAllPages, todayStamp } from '@/lib/excel-export';
 
 interface StockInItemForm {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Table, type TableColumnsType } from '@lark-apaas/client-toolkit/antd-table';
+import { Table, type TableColumnsType } from 'antd';
 import {
   Database,
   Download,
@@ -253,7 +253,7 @@ export default function SystemBackupPage() {
           <summary className="cursor-pointer text-blue-700">整机重装后怎么一键恢复（三步，不用懂命令细节）</summary>
           <ol className="mt-1 pl-5 list-decimal space-y-1 text-gray-600">
             <li>在新系统上装好飞牛和 Docker，把整个项目目录 <code>/vol1/1000/jxc</code> 恢复出来（目录里只要有 <code>backup/*.tgz</code> 这一个包）。</li>
-            <li>连上 NAS 的 SSH，执行 <code>bash /vol1/1000/jxc/jxc-restore.sh --yes</code>（不带参数就自动用 backup 目录里最新的整包）。</li>
+            <li>连上 NAS 的 SSH，执行 <code>bash /vol1/1000/jxc/一键恢复.sh</code>（它会自动找最新的包，不用记路径）。</li>
             <li>等它跑完，浏览器打开 <code>http://NAS的IP:3000</code>，用原来的账号密码登录即可，数据、源码、镜像全都在。</li>
           </ol>
         </details>
@@ -307,24 +307,6 @@ export default function SystemBackupPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={pendingDelete !== null} onOpenChange={(open: boolean) => !open && setPendingDelete(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>删除备份</DialogTitle>
-          </DialogHeader>
-          <div className="text-sm text-gray-700">
-            删除后无法找回：<b>{pendingDelete?.name}</b>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setPendingDelete(null)}>
-              取消
-            </Button>
-            <Button size="sm" onClick={handleDelete}>
-              确认删除
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={clearOpen} onOpenChange={(open: boolean) => !open && setClearOpen(false)}>
         <DialogContent className="max-w-md">
@@ -347,6 +329,24 @@ export default function SystemBackupPage() {
             </Button>
             <Button size="sm" variant="destructive" onClick={handleClear}>
               确认清空
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={pendingDelete !== null} onOpenChange={(open: boolean) => !open && setPendingDelete(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>删除备份</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-gray-700">
+            删除后无法找回：<b>{pendingDelete?.name}</b>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setPendingDelete(null)}>
+              取消
+            </Button>
+            <Button size="sm" onClick={handleDelete}>
+              确认删除
             </Button>
           </DialogFooter>
         </DialogContent>
